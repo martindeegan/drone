@@ -10,8 +10,6 @@
 
 #pragma comment(lib, "XInput.lib")
 
-#define THUMB_MAX 32767
-
 Input::Input(std::function<void(short lx, short ly, short rx, short ry)> callback)
   :running(true), PollCallback(callback)
 {
@@ -73,10 +71,6 @@ void Input::ThreadLoop()
       FindController();
     }
   }
-}
-
-float magnitude(short x, short y) {
-  return (float)sqrt(x*x + y*y);
 }
 
 DWORD Input::GetBatteryCharge()
