@@ -24,4 +24,5 @@ app.post('/desktop', function(req, res) {
   desktop_info = req.params.ip;
 });
 
-app.listen(9000);
+var port = parseInt(process.argv[2]);
+app.listen(port);
