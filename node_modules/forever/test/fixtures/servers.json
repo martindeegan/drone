@@ -1,0 +1,17 @@
+[
+  {
+    "uid": "server1",
+    "append": true,
+    "script": "server.js",
+    "sourceDir": "./test/fixtures",
+    "workingDir": "./"
+  },
+  {
+    "uid": "server2",
+    "append": true,
+    "script": "server.js",
+    "sourceDir": "./test/fixtures",
+    "workingDir": "./",
+    "args": ["-p", 8081]
+  }
+]
