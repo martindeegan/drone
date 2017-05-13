@@ -12,6 +12,7 @@ app.get('/drone', function(req, res) {
 app.post('/drone', function(req, res) {
   console.log('Posting drone information');
   drone_info = req.params.ip;
+  res.send('');
 });
 
 app.get('/desktop', function(req, res) {
@@ -22,6 +23,7 @@ app.get('/desktop', function(req, res) {
 app.post('/desktop', function(req, res) {
   console.log('Posting desktop information');
   desktop_info = req.params.ip;
+  res.send('');
 });
 
 var port = parseInt(process.argv[2]);
