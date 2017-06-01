@@ -20,10 +20,23 @@ void Exit(void)
   running = false;
 }
 
+static Input input(&Poll);
+
+void LowerRefreshRate()
+{
+  input.SetRefreshRate(input.GetRefreshRate() + std::chrono::milliseconds(1));
+}
+
+void HigherRefreshRate()
+{
+  input.SetRefreshRate(input.GetRefreshRate() - std::chrono::milliseconds(1));
+}
+
 int main()
 {
-  Input input(&Poll);
   input.BindAction(XINPUT_GAMEPAD_DPAD_DOWN, &Exit);
+  input.BindAction(XINPUT_GAMEPAD_DPAD_RIGHT, &HigherRefreshRate);
+  input.BindAction(XINPUT_GAMEPAD_DPAD_LEFT, &LowerRefreshRate);
 
   while (running);
 
