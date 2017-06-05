@@ -1,14 +1,51 @@
 const dgram = require('dgram');
-
 const socket = dgram.createSocket('udp4');
 
+var controllerAddr;
+var controllerPort;
+
+var droneAddr;
+var dronePort;
+
+function sendEndpoints() {
+  let controllerEP = controllerAddr + ':' + controllerPort.toString();
+  let droneEP = droneAddr + ':' + dronePort.toString();
+
+  socket.send(controllerEP, dronePort, droneAddr);
+  socket.send(droneEP, controllerPort, controllerAddr);
+
+  controllerAddr = null;
+  controllerPort = null;
+  droneAddr = null;
+  dronePort = null;
+}
+
 socket.on('message', (msg, rinfo) => {
-  console.log(msg.toString());
-  var parts = msg.toString().split(':');
-  var len = parts.length;
-  var ip = parts[len - 2];
-  var port = parseInt(parts[len - 1]);
-  socket.send('Sup', port, ip);
+  console.log('Message origin: ' + rinfo.address + ':' + rinfo.port.toString());
+  if(msg.length === 1) {
+    if(msg[0] === 0) {
+      //Controller ping 
+      controllerAddr = rinfo.address;
+      controllerPort = rinfo.port;
+
+      socket.send("Pong", controllerPort, controllerAddr);
+    }
+    else if(msg[0] === 1) {
+      //Drone ping
+      droneAddr = rinfo.address;
+      dronePort = rinfo.port;
+
+      socket.send("Pong", dronePort, droneAddr);
+    }
+  }
+
+  if(droneAddr && controllerAddr) {
+    sendEndpoints();
+  }
 });
 
-socket.send('World', 7070, '127.0.0.1');
+socket.on('listen', () => {
+  console.log('Listening');
+});
+
+socket.bind(7070);
