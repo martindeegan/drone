@@ -1,7 +1,6 @@
 use std::io::stdin;
 use std::io::Read;
 use std::thread::sleep;
-use std::thread;
 use std::process;
 use std::time::Duration;
 use std::string::String;
@@ -53,7 +52,7 @@ fn main() {
         match input.trim() {
             "stop" => break 'input,
             _ => {
-                
+
                 let mut x: u32 = input.trim().parse().unwrap_or(1300);
                 if x > MAX_VALUE {
                     x = MAX_VALUE;

@@ -62,7 +62,7 @@ impl MotorManager {
 
     pub fn arm(&mut self) {
         let num_motors = self.motors.capacity();
-        println!("Arming motors");
+        println!("Arming motors.");
 
         let motor_1 = self.motors[0].arm();
         let motor_2 = self.motors[1].arm();
@@ -74,7 +74,9 @@ impl MotorManager {
         motor_3.join().unwrap();
         motor_4.join().unwrap();
 
-        println!("Starting motors");
+        println!("Motors armed.");
+
+        println!("Starting motors.");
 
         for m in 0..num_motors {
             self.motors[m].set_power(1250);
