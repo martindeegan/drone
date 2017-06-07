@@ -1,0 +1,14 @@
+[package]
+name = "drone"
+version = "0.1.0"
+authors = ["Thomas Deegan <tadeegan@gmail.com>", "Martin Deegan <mddeegan@gmail.com>"]
+
+[dependencies]
+rust-pigpio = "0.1.3"
+
+[[bin]]
+name = "drone"
+path = "src/main.rs"
+
+# [profile.dev]
+# opt-level = 3
