@@ -10,10 +10,11 @@ namespace drone_controller
 {
     class Connection
     {
-        const int SERVER_PORT = 6060;
-        const string SERVER_ADDRESS = "13.59.251.61";
+        const int SERVER_PORT = 7070;
+        //const string SERVER_ADDRESS = "13.59.251.61";
+        const string SERVER_ADDRESS = "10.0.0.28";
 
-        Connection()
+        public Connection()
         {
             client = new UdpClient();
         }
@@ -52,14 +53,15 @@ namespace drone_controller
         private bool connectToServer()
         {
             client.Connect(IPAddress.Parse(SERVER_ADDRESS), SERVER_PORT);
-            var msg = System.Text.Encoding.ASCII.GetBytes("Controller");
+            var msg = System.Text.Encoding.ASCII.GetBytes("controller");
             client.Send(msg, msg.Length);
             System.Timers.Timer timeout = new System.Timers.Timer();
             timeout.Elapsed += (o, e) => { client.Close(); };
             IPEndPoint ep = new IPEndPoint(IPAddress.Any, 0);
-            var response = client.Receive(ref ep);
+            var response = Encodclient.Receive(ref ep);
             if(response.Length > 0)
             {
+                var split = response.
                 return true;
             }
             return false;

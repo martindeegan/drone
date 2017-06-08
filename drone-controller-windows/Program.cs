@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading;
+using drone_controller;
 
 namespace drone_controller_windows
 {
@@ -21,10 +23,13 @@ namespace drone_controller_windows
 
         public static void Main(string[] args)
         {
-            XBoxController controller = new XBoxController();
-            XBoxController.Poll += Poll;
-            XBoxController.b_A += doSomething;
-            Console.ReadKey();
+            //XBoxController controller = new XBoxController();
+            //XBoxController.Poll += Poll;
+            //XBoxController.b_A += doSomething;
+            Connection conn = new Connection();
+            conn.start();
+            Thread.Sleep(2000);
+            conn.stop();
         }
     };
     

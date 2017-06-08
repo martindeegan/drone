@@ -11,6 +11,27 @@ namespace drone_controller_windows
 
     class XBoxController
     {
+
+        static XBoxController()
+        {
+            Poll += (lx,ly,rx,ry) => { };
+            Trigger += (l, r) => { };
+            b_A += () => { };
+            b_B += () => { };
+            b_X += () => { };
+            b_Y += () => { };
+            b_Start += () => { };
+            b_Back += () => { };
+            b_LeftShoulder += () => { };
+            b_RightShoulder += () => { };
+            b_LeftThumb += () => { };
+            b_RightThumb += () => { };
+            b_DPadDown += () => { };
+            b_DPadUp += () => { };
+            b_DPadLeft += () => { };
+            b_DPadRight += () => { };
+        } 
+
         public const int LEFT_THUMB_DEADZONE = 7849;
         public const int RIGHT_THUMB_DEADZONE = 8689;
         public const int TRIGGER_THREASHOLD = 30;
@@ -34,19 +55,6 @@ namespace drone_controller_windows
             if(controller == null)
             {
                 Console.WriteLine("Controller not connected.");
-            }
-        }
-
-        private void InvokeButton(GamepadButtonFlags button)
-        {
-            if (lastButton != button)
-            {
-                var evt = buttonMapping[button];
-                if(evt != null)
-                {
-                    evt.Invoke();
-                    lastButton = button;
-                }
             }
         }
 
@@ -89,54 +97,109 @@ namespace drone_controller_windows
                 {
                     Trigger(lt, rt);
                 }
-                /*
+                
                 switch(gp.Buttons)
                 {
                     case GamepadButtonFlags.A:
-                        InvokeButton(GamepadButtonFlags.A);
+                        if(lastButton != GamepadButtonFlags.A)
+                        {
+                            b_A.Invoke();
+                            lastButton = GamepadButtonFlags.A;
+                        }
                         break;
                     case GamepadButtonFlags.B:
-                        InvokeButton(GamepadButtonFlags.B);
+                        if (lastButton != GamepadButtonFlags.B)
+                        {
+                            b_B.Invoke();
+                            lastButton = GamepadButtonFlags.B;
+                        }
                         break;
                     case GamepadButtonFlags.X:
-                        InvokeButton(GamepadButtonFlags.X);
+                        if (lastButton != GamepadButtonFlags.X)
+                        {
+                            b_X.Invoke();
+                            lastButton = GamepadButtonFlags.X;
+                        }
                         break;
                     case GamepadButtonFlags.Y:
-                        InvokeButton(GamepadButtonFlags.Y);
+                        if (lastButton != GamepadButtonFlags.Y)
+                        {
+                            b_Y.Invoke();
+                            lastButton = GamepadButtonFlags.Y;
+                        }
                         break;
                     case GamepadButtonFlags.Start:
-                        InvokeButton(GamepadButtonFlags.Start);
+                        if (lastButton != GamepadButtonFlags.Start)
+                        {
+                            b_Start.Invoke();
+                            lastButton = GamepadButtonFlags.Start;
+                        }
                         break;
                     case GamepadButtonFlags.Back:
-                        InvokeButton(GamepadButtonFlags.Back);
+                        if (lastButton != GamepadButtonFlags.Back)
+                        {
+                            b_Back.Invoke();
+                            lastButton = GamepadButtonFlags.Back;
+                        }
                         break;
                     case GamepadButtonFlags.LeftShoulder:
-                        InvokeButton(GamepadButtonFlags.LeftShoulder);
+                        if (lastButton != GamepadButtonFlags.LeftShoulder)
+                        {
+                            b_LeftShoulder.Invoke();
+                            lastButton = GamepadButtonFlags.LeftShoulder;
+                        }
                         break;
                     case GamepadButtonFlags.RightShoulder:
-                        InvokeButton(GamepadButtonFlags.RightShoulder);
+                        if (lastButton != GamepadButtonFlags.RightShoulder)
+                        {
+                            b_RightShoulder.Invoke();
+                            lastButton = GamepadButtonFlags.RightShoulder;
+                        }
                         break;
                     case GamepadButtonFlags.LeftThumb:
-                        InvokeButton(GamepadButtonFlags.LeftThumb);
+                        if (lastButton != GamepadButtonFlags.LeftThumb)
+                        {
+                            b_LeftThumb.Invoke();
+                            lastButton = GamepadButtonFlags.LeftThumb;
+                        }
                         break;
                     case GamepadButtonFlags.RightThumb:
-                        InvokeButton(GamepadButtonFlags.RightThumb);
+                        if (lastButton != GamepadButtonFlags.RightThumb)
+                        {
+                            b_RightThumb.Invoke();
+                            lastButton = GamepadButtonFlags.RightThumb;
+                        }
                         break;
                     case GamepadButtonFlags.DPadDown:
-                        InvokeButton(GamepadButtonFlags.DPadDown);
+                        if (lastButton != GamepadButtonFlags.DPadDown)
+                        {
+                            b_DPadDown.Invoke();
+                            lastButton = GamepadButtonFlags.DPadDown;
+                        }
                         break;
                     case GamepadButtonFlags.DPadUp:
-                        InvokeButton(GamepadButtonFlags.DPadUp);
+                        if (lastButton != GamepadButtonFlags.DPadUp)
+                        {
+                            b_DPadUp.Invoke();
+                            lastButton = GamepadButtonFlags.DPadUp;
+                        }
                         break;
                     case GamepadButtonFlags.DPadLeft:
-                        InvokeButton(GamepadButtonFlags.DPadLeft);
+                        if (lastButton != GamepadButtonFlags.DPadLeft)
+                        {
+                            b_DPadLeft.Invoke();
+                            lastButton = GamepadButtonFlags.DPadLeft;
+                        }
                         break;
                     case GamepadButtonFlags.DPadRight:
-                        InvokeButton(GamepadButtonFlags.DPadRight);
+                        if (lastButton != GamepadButtonFlags.DPadRight)
+                        {
+                            b_DPadRight.Invoke();
+                            lastButton = GamepadButtonFlags.DPadRight;
+                        }
                         break;
-
                 }
-                */
+                
             }
         }
 
@@ -146,34 +209,16 @@ namespace drone_controller_windows
         public static event ButtonPressedDelegate b_B;
         public static event ButtonPressedDelegate b_X;
         public static event ButtonPressedDelegate b_Y;
-        public static event ButtonPressedDelegate b_Menu;
-        public static event ButtonPressedDelegate b_View;
-        public static event ButtonPressedDelegate b_LeftBumper;
-        public static event ButtonPressedDelegate b_RightBumper;
-        public static event ButtonPressedDelegate b_LeftJoystick;
-        public static event ButtonPressedDelegate b_RightJoystick;
+        public static event ButtonPressedDelegate b_Start;
+        public static event ButtonPressedDelegate b_Back;
+        public static event ButtonPressedDelegate b_LeftShoulder;
+        public static event ButtonPressedDelegate b_RightShoulder;
+        public static event ButtonPressedDelegate b_LeftThumb;
+        public static event ButtonPressedDelegate b_RightThumb;
         public static event ButtonPressedDelegate b_DPadDown;
         public static event ButtonPressedDelegate b_DPadUp;
         public static event ButtonPressedDelegate b_DPadLeft;
         public static event ButtonPressedDelegate b_DPadRight;
-
-        private static Dictionary<GamepadButtonFlags, ButtonPressedDelegate> buttonMapping = new Dictionary<GamepadButtonFlags, ButtonPressedDelegate>()
-        {
-            {GamepadButtonFlags.A, b_A},
-            {GamepadButtonFlags.B, b_B},
-            {GamepadButtonFlags.X, b_X},
-            {GamepadButtonFlags.Y, b_Y},
-            {GamepadButtonFlags.Start, b_Menu},
-            {GamepadButtonFlags.Back, b_View},
-            {GamepadButtonFlags.LeftShoulder, b_LeftBumper},
-            {GamepadButtonFlags.RightShoulder, b_RightBumper},
-            {GamepadButtonFlags.LeftThumb, b_LeftJoystick},
-            {GamepadButtonFlags.RightThumb, b_RightJoystick},
-            {GamepadButtonFlags.DPadDown, b_DPadDown},
-            {GamepadButtonFlags.DPadUp, b_DPadUp},
-            {GamepadButtonFlags.DPadLeft, b_DPadLeft},
-            {GamepadButtonFlags.DPadRight, b_DPadRight},
-        };
 
         private Controller controller;
         private GamepadButtonFlags lastButton;
