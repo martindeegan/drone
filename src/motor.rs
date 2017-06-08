@@ -26,6 +26,9 @@ impl MotorManager {
 
     pub fn initialize(&self) {
         pigpio::initialize();
+        for m in 0..self.motors.capacity() {
+            self.motors[m].initialize();
+        }
         println!("Initialized Motor Manager!");
     }
 
@@ -116,19 +119,25 @@ pub struct Motor {
 impl Motor {
 
     pub fn new(gpio_pin: u32) -> Motor {
-        pigpio::set_mode(gpio_pin, pigpio::MODE_OUTPUT);
-        pigpio::set_pwm_range(gpio_pin, 2000);
-        pigpio::set_pwm_frequency(gpio_pin, 500);
-        Motor { pin: gpio_pin, current_power: 0 }
+        let motor = Motor { pin: gpio_pin, current_power: 0 };
+        motor.initialize();
+        motor
+    }
+
+    pub fn initialize(&self) {
+        pigpio::set_mode(self.pin, pigpio::MODE_OUTPUT);
+        pigpio::set_pwm_range(self.pin, 2000);
+        pigpio::set_pwm_frequency(self.pin, 500);
+        pigpio::write(self.pin, pigpio::PI_OFF);
     }
 
     pub fn calibrate(&mut self) -> thread::JoinHandle<()> {
         let gpio = self.pin;
         thread::spawn(move || {
-            pigpio::servo(gpio, 0);
-            sleep(Duration::from_secs(4));
+            pigpio::pwm(gpio, 1500);
+            sleep(Duration::from_secs(1));
             pigpio::servo(gpio, 2000);
-            sleep(Duration::from_secs(4));
+            sleep(Duration::from_secs(8));
             pigpio::servo(gpio, 1000);
             sleep(Duration::from_secs(8));
             pigpio::write(gpio, pigpio::PI_OFF);
@@ -139,6 +148,8 @@ impl Motor {
     pub fn arm(&mut self) -> thread::JoinHandle<()> {
         let gpio = self.pin;
         thread::spawn(move || {
+            pigpio::pwm(gpio, 1050);
+            sleep(Duration::from_secs(1));
             pigpio::pwm(gpio, 1000);
             sleep(Duration::from_secs(2));
 

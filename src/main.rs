@@ -1,11 +1,11 @@
 use std::io::stdin;
-use std::io::Read;
 use std::thread::sleep;
 use std::process;
 use std::time::Duration;
 use std::string::String;
 
 mod motor;
+mod connection;
 
 use motor::MotorManager;
 use motor::Motor;
