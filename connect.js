@@ -22,15 +22,16 @@ function sendEndpoints() {
 
 socket.on('message', (msg, rinfo) => {
   console.log('Message origin: ' + rinfo.address + ':' + rinfo.port.toString());
-  if(msg.length === 1) {
-    if(msg[0] === 0) {
+  if(msg.length > 1) {
+    console.log(msg.toString());
+    if(msg.toString() === 'controller') {
       //Controller ping 
       controllerAddr = rinfo.address;
       controllerPort = rinfo.port;
 
       socket.send("Pong", controllerPort, controllerAddr);
     }
-    else if(msg[0] === 1) {
+    else if(msg.toString() === 'drone') {
       //Drone ping
       droneAddr = rinfo.address;
       dronePort = rinfo.port;
