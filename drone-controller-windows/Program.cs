@@ -27,9 +27,15 @@ namespace drone_controller_windows
             //XBoxController.Poll += Poll;
             //XBoxController.b_A += doSomething;
             Connection conn = new Connection();
-            conn.start();
+            if(conn.ConnectToServer())
+            {
+                conn.ConnectToDrone();
+            }
+            
             Thread.Sleep(2000);
             conn.stop();
+
+            Console.ReadKey();
         }
     };
     
