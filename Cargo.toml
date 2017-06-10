@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Thomas Deegan <tadeegan@gmail.com>", "Martin Deegan <mddeegan@gmail.com>"]
 
 [dependencies]
-rust-pigpio = "0.1.3"
+rust-pigpio = "0.2.0"
 
 [[bin]]
 name = "drone"
