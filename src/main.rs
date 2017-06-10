@@ -7,16 +7,16 @@ use motor::MotorManager;
 
 
 
-const MOTOR_1 : u32 = 18;
-const MOTOR_2 : u32 = 19;
-const MOTOR_3 : u32 = 20;
-const MOTOR_4 : u32 = 21;
+const MOTOR_1 : u32 = 19;
+const MOTOR_2 : u32 = 20;
+const MOTOR_3 : u32 = 21;
+const MOTOR_4 : u32 = 26;
 
 fn main() {
     let mut manager = MotorManager::new();
-    manager.new_motor(MOTOR_1);
+//    manager.new_motor(MOTOR_1);
     manager.new_motor(MOTOR_2);
-    manager.new_motor(MOTOR_3);
+//    manager.new_motor(MOTOR_3);
     manager.new_motor(MOTOR_4);
 
     'question: loop {
@@ -42,17 +42,21 @@ fn main() {
         stdin().read_line(&mut input).expect("Error");
 
         match input.trim() {
-            "stop" => break 'input,
+            "stop" => {
+                manager.terminate();
+                break 'input
+            },
             _ => {
-                let x: u32 = input.trim().parse().unwrap_or(1300);
+                let x: u32 = input.trim().parse().unwrap_or(1100);
 
                 manager.set_power(0, x);
                 manager.set_power(1, x);
-                manager.set_power(2, x);
-                manager.set_power(3, x);
+//                manager.set_power(2, x);
+//                manager.set_power(3 , x);
             }
         }
     }
+
 
 }
 
