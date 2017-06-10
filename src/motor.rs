@@ -158,6 +158,7 @@ impl Motor {
         self.current_power = power
     }
 
+    #[allow(dead_code)]
     pub fn get_power(&self) -> u32 {
         self.current_power
     }
