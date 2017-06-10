@@ -10,8 +10,6 @@ mod motor;
 use motor::MotorManager;
 use motor::Motor;
 
-const PIN : u32 = 21;
-
 const MAX_VALUE : u32 = 1990;
 const MIN_VALUE : u32 = 1050;
 

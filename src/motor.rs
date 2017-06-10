@@ -1,6 +1,8 @@
 extern crate rust_pigpio;
 
-use self::rust_pigpio::pigpio;
+use self::rust_pigpio::*;
+use self::rust_pigpio::pwm::*;
+use self::rust_pigpio::constants::*;
 
 use std;
 use std::thread;
@@ -25,7 +27,7 @@ impl MotorManager {
     }
 
     pub fn initialize(&self) {
-        pigpio::initialize();
+        initialize();
         println!("Initialized Motor Manager!");
     }
 
@@ -33,7 +35,7 @@ impl MotorManager {
         for x in 0..self.motors.capacity() {
             self.motors[x].stop();
         }
-        pigpio::terminate();
+        terminate();
         println!("Stopped.");
     }
 
@@ -116,22 +118,22 @@ pub struct Motor {
 impl Motor {
 
     pub fn new(gpio_pin: u32) -> Motor {
-        pigpio::set_mode(gpio_pin, pigpio::MODE_OUTPUT);
-        pigpio::set_pwm_range(gpio_pin, 2000);
-        pigpio::set_pwm_frequency(gpio_pin, 500);
+        set_mode(gpio_pin, OUTPUT);
+        set_pwm_range(gpio_pin, 2000);
+        set_pwm_frequency(gpio_pin, 500);
         Motor { pin: gpio_pin, current_power: 0 }
     }
 
     pub fn calibrate(&mut self) -> thread::JoinHandle<()> {
         let gpio = self.pin;
         thread::spawn(move || {
-            pigpio::servo(gpio, 0);
+            servo(gpio, 0);
             sleep(Duration::from_secs(4));
-            pigpio::servo(gpio, 2000);
+            servo(gpio, 2000);
             sleep(Duration::from_secs(4));
-            pigpio::servo(gpio, 1000);
+            servo(gpio, 1000);
             sleep(Duration::from_secs(8));
-            pigpio::write(gpio, pigpio::PI_OFF);
+            write(gpio, OFF);
             sleep(Duration::from_secs(8));
         })
     }
@@ -139,15 +141,15 @@ impl Motor {
     pub fn arm(&mut self) -> thread::JoinHandle<()> {
         let gpio = self.pin;
         thread::spawn(move || {
-            pigpio::pwm(gpio, 1000);
+            pwm(gpio, 1000);
             sleep(Duration::from_secs(2));
 
-            pigpio::pwm(gpio, 1100);
+            pwm(gpio, 1100);
         })
     }
 
     pub fn set_power(&mut self, power: u32) {
-        pigpio::pwm(self.pin, power);
+        pwm(self.pin, power);
         self.current_power = power
     }
 
@@ -156,7 +158,7 @@ impl Motor {
     }
 
     pub fn stop(&mut self)  {
-        pigpio::write(self.pin, 0);
+        write(self.pin, OFF);
         self.current_power = 0;
     }
 }
