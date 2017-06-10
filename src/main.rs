@@ -1,10 +1,7 @@
 extern crate protobuf;
 
-use std::io::stdin;
-use std::thread::sleep;
-use std::process;
-use std::time::Duration;
-use std::string::String;
+//use std::io::stdin;
+//use std::string::String;
 
 #[cfg(rpi)] //Add to .bashrc: export RUST_PI_COMPILATION="rpi"
 mod motor;
@@ -24,11 +21,6 @@ mod connection;
 use connection::Connection;
 
 
-const PIN : u32 = 21;
-
-const MAX_VALUE : u32 = 1990;
-const MIN_VALUE : u32 = 1050;
-
 #[cfg(rpi)]
 const MOTOR_1 : u32 = 18;
 #[cfg(rpi)]
@@ -39,7 +31,6 @@ const MOTOR_3 : u32 = 20;
 const MOTOR_4 : u32 = 21;
 
 fn main() {
-
     let mut position = Position::new();
     position.set_time(1000);
     position.set_x(1);
@@ -48,7 +39,7 @@ fn main() {
     let bytes = position.write_to_bytes().unwrap();
     println!("{:?}", bytes);
 
-    let mut read_pos: Position = protobuf::parse_from_bytes(bytes.as_ref()).unwrap();
+    let read_pos: Position = protobuf::parse_from_bytes(bytes.as_ref()).unwrap();
 
     println!("Deserialized: time: {}, x: {}, y: {}, z: {}", read_pos.time, read_pos.x, read_pos.y, read_pos.z);
 
@@ -86,14 +77,7 @@ fn main() {
 //        match input.trim() {
 //            "stop" => break 'input,
 //            _ => {
-//
-//                let mut x: u32 = input.trim().parse().unwrap_or(1300);
-//                if x > MAX_VALUE {
-//                    x = MAX_VALUE;
-//                }
-//                else if x < MIN_VALUE {
-//                    x = MIN_VALUE;
-//                }
+//                let x: u32 = input.trim().parse().unwrap_or(1300);
 //
 //                manager.set_power(0, x);
 //                manager.set_power(1, x);
@@ -102,7 +86,5 @@ fn main() {
 //            }
 //        }
 //    }
-
-
 }
 

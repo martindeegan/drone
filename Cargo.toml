@@ -5,13 +5,11 @@ authors = ["Thomas Deegan <tadeegan@gmail.com>", "Martin Deegan <mddeegan@gmail.
 build = "build.rs"
 
 [dependencies]
-rust-pigpio = "0.1.3"
+rust-pigpio = "0.2.0"
 protobuf = "1.2.2"
 
 [build-dependencies]
-#rust-protobuf = "1.2.2"
 protoc-rust = { path = "third_party/rust-protobuf/protoc-rust" }
-
 
 [[bin]]
 name = "drone"
