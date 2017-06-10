@@ -1,2 +1,4 @@
 .idea/
 target/
+src/proto
+third_party/
