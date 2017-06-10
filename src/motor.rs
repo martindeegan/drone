@@ -6,11 +6,12 @@ use rust_pigpio::pwm::*;
 use std;
 use std::thread;
 use std::thread::sleep;
+use std::thread::JoinHandle;
 
 use std::time::Duration;
 
-const MAX_VALUE : u32 = 1990;
-const MIN_VALUE : u32 = 1010;
+const MAX_VALUE : u32 = 1975;
+const MIN_VALUE : u32 = 1100;
 
 pub struct MotorManager {
     motors: Vec<Motor>
@@ -30,56 +31,52 @@ impl MotorManager {
     }
 
     pub fn terminate(&mut self) {
-        for x in 0..self.motors.capacity() {
-            self.motors[x].stop();
+        for motor in &mut self.motors {
+            motor.stop();
         }
         terminate();
         println!("Stopped.");
     }
 
     pub fn calibrate(&mut self) {
-        println!("Calibrating. This may take a moment");
-
-        let motor_1 = self.motors[0].calibrate();
-        let motor_2 = self.motors[1].calibrate();
-        let motor_3 = self.motors[2].calibrate();
-        let motor_4 = self.motors[3].calibrate();
-
-        sleep(Duration::from_secs(10));
-        println!("Weird eh! Special tone eh? WHAT DID I SAID!!!");
-
-        motor_1.join().unwrap();
-        motor_2.join().unwrap();
-        motor_3.join().unwrap();
-        motor_4.join().unwrap();
-
-        println!("Done calibrating. Restarting.");
-        self.terminate();
-        sleep(Duration::from_secs(10));
-
-        self.initialize();
+//        println!("Calibrating. This may take a moment");
+//        let mut handles: Vec<JoinHandle<()>> = Vec::new();
+//        for &mut motor in self.motors {
+//            handles.push(motor.calibrate());
+//        }
+//
+//        sleep(Duration::from_secs(10));
+//        println!("Weird eh! Special tone eh? WHAT DID I SAID!!!");
+//
+//        for mut handle in handles {
+//            handle.join();
+//        }
+//
+//        println!("Done calibrating. Restarting.");
+//        self.terminate();
+//        sleep(Duration::from_secs(10));
+//
+//        self.initialize();
     }
 
     pub fn arm(&mut self) {
-        let num_motors = self.motors.capacity();
         println!("Arming motors.");
 
-        let motor_1 = self.motors[0].arm();
-        let motor_2 = self.motors[1].arm();
-        let motor_3 = self.motors[2].arm();
-        let motor_4 = self.motors[3].arm();
+        let mut handles: Vec<JoinHandle<()>> = Vec::new();
+        for mut motor in &mut self.motors {
+            handles.push(motor.arm());
+        }
 
-        motor_1.join().unwrap();
-        motor_2.join().unwrap();
-        motor_3.join().unwrap();
-        motor_4.join().unwrap();
+        for mut handle in handles {
+            handle.join();
+        }
 
         println!("Motors armed.");
 
         println!("Starting motors.");
 
-        for m in 0..num_motors {
-            self.motors[m].set_power(1250);
+        for mut motor in &mut self.motors {
+            motor.set_power(MIN_VALUE);
         }
     }
 
