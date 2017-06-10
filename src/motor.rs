@@ -1,8 +1,7 @@
 #![cfg(rpi)] //Add to .bashrc: export RUST_PI_COMPILATION="rpi"
-extern crate rust_pigpio;
 
-use self::rust_pigpio::*;
-use self::rust_pigpio::pwm::*;
+use rust_pigpio::*;
+use rust_pigpio::pwm::*;
 
 use std;
 use std::thread;

@@ -1,4 +1,7 @@
+#[cfg(rpi)]
+extern crate rust_pigpio;
 extern crate protobuf;
+extern crate time;
 
 //use std::io::stdin;
 //use std::string::String;
@@ -17,6 +20,7 @@ mod proto {
 use protobuf::Message;
 use proto::position::Position;
 
+mod tasker;
 mod connection;
 use connection::Connection;
 

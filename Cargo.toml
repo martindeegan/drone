@@ -7,6 +7,7 @@ build = "build.rs"
 [dependencies]
 rust-pigpio = "0.2.0"
 protobuf = "1.2.2"
+time = "0.1"
 
 [build-dependencies]
 protoc-rust = { path = "third_party/rust-protobuf/protoc-rust" }
