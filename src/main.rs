@@ -1,17 +1,11 @@
 use std::io::stdin;
-use std::io::Read;
-use std::thread::sleep;
-use std::process;
-use std::time::Duration;
 use std::string::String;
 
 mod motor;
 
 use motor::MotorManager;
-use motor::Motor;
 
-const MAX_VALUE : u32 = 1990;
-const MIN_VALUE : u32 = 1050;
+
 
 const MOTOR_1 : u32 = 18;
 const MOTOR_2 : u32 = 19;
@@ -50,14 +44,7 @@ fn main() {
         match input.trim() {
             "stop" => break 'input,
             _ => {
-
-                let mut x: u32 = input.trim().parse().unwrap_or(1300);
-                if x > MAX_VALUE {
-                    x = MAX_VALUE;
-                }
-                else if x < MIN_VALUE {
-                    x = MIN_VALUE;
-                }
+                let x: u32 = input.trim().parse().unwrap_or(1300);
 
                 manager.set_power(0, x);
                 manager.set_power(1, x);

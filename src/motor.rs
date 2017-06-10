@@ -2,17 +2,15 @@ extern crate rust_pigpio;
 
 use self::rust_pigpio::*;
 use self::rust_pigpio::pwm::*;
-use self::rust_pigpio::constants::*;
 
 use std;
 use std::thread;
 use std::thread::sleep;
-use std::sync::mpsc::channel;
 
-use std::collections::HashSet;
-use std::string::String;
 use std::time::Duration;
 
+const MAX_VALUE : u32 = 1990;
+const MIN_VALUE : u32 = 1010;
 
 pub struct MotorManager {
     motors: Vec<Motor>
@@ -27,7 +25,7 @@ impl MotorManager {
     }
 
     pub fn initialize(&self) {
-        initialize();
+        initialize().unwrap();
         println!("Initialized Motor Manager!");
     }
 
@@ -118,22 +116,22 @@ pub struct Motor {
 impl Motor {
 
     pub fn new(gpio_pin: u32) -> Motor {
-        set_mode(gpio_pin, OUTPUT);
-        set_pwm_range(gpio_pin, 2000);
-        set_pwm_frequency(gpio_pin, 500);
+        set_mode(gpio_pin, OUTPUT).unwrap();
+        set_pwm_range(gpio_pin, 2000).unwrap();
+        set_pwm_frequency(gpio_pin, 500).unwrap();
         Motor { pin: gpio_pin, current_power: 0 }
     }
 
     pub fn calibrate(&mut self) -> thread::JoinHandle<()> {
         let gpio = self.pin;
         thread::spawn(move || {
-            servo(gpio, 0);
+            servo(gpio, 0).unwrap();
             sleep(Duration::from_secs(4));
-            servo(gpio, 2000);
+            servo(gpio, 2000).unwrap();
             sleep(Duration::from_secs(4));
-            servo(gpio, 1000);
+            servo(gpio, 1000).unwrap();
             sleep(Duration::from_secs(8));
-            write(gpio, OFF);
+            write(gpio, OFF).unwrap();
             sleep(Duration::from_secs(8));
         })
     }
@@ -141,15 +139,22 @@ impl Motor {
     pub fn arm(&mut self) -> thread::JoinHandle<()> {
         let gpio = self.pin;
         thread::spawn(move || {
-            pwm(gpio, 1000);
+            pwm(gpio, 1000).unwrap();
             sleep(Duration::from_secs(2));
 
-            pwm(gpio, 1100);
+            pwm(gpio, 1100).unwrap();
         })
     }
 
-    pub fn set_power(&mut self, power: u32) {
-        pwm(self.pin, power);
+    pub fn set_power(&mut self, mut power: u32) {
+        if power > MAX_VALUE {
+            power = MAX_VALUE;
+        }
+        else if power < MIN_VALUE {
+            power = MIN_VALUE;
+        }
+
+        pwm(self.pin, power).unwrap();
         self.current_power = power
     }
 
@@ -158,7 +163,7 @@ impl Motor {
     }
 
     pub fn stop(&mut self)  {
-        write(self.pin, OFF);
+        write(self.pin, OFF).unwrap();
         self.current_power = 0;
     }
 }
