@@ -10,8 +10,8 @@ use std::string::String;
 use std::thread::sleep;
 use std::time::Duration;
 
-//const SERVER_ADDR: &str = "10.0.0.28:7070";
-const SERVER_ADDR: &str = "13.59.251.61:7070";
+const SERVER_ADDR: &str = "10.0.0.28:7070";
+//const SERVER_ADDR: &str = "13.59.251.61:7070";
 const LOCAL_ADDR: &str = "0.0.0.0:27136";
 
 pub struct Connection {

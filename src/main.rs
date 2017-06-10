@@ -1,29 +1,58 @@
+extern crate protobuf;
+
 use std::io::stdin;
 use std::thread::sleep;
 use std::process;
 use std::time::Duration;
 use std::string::String;
 
+#[cfg(rpi)] //Add to .bashrc: export RUST_PI_COMPILATION="rpi"
 mod motor;
-mod connection;
-
+#[cfg(rpi)]
 use motor::MotorManager;
+#[cfg(rpi)]
 use motor::Motor;
+
+mod proto {
+    pub mod position;
+}
+
+use protobuf::Message;
+use proto::position::Position;
+
+mod connection;
 use connection::Connection;
+
 
 const PIN : u32 = 21;
 
 const MAX_VALUE : u32 = 1990;
 const MIN_VALUE : u32 = 1050;
 
+#[cfg(rpi)]
 const MOTOR_1 : u32 = 18;
+#[cfg(rpi)]
 const MOTOR_2 : u32 = 19;
+#[cfg(rpi)]
 const MOTOR_3 : u32 = 20;
+#[cfg(rpi)]
 const MOTOR_4 : u32 = 21;
 
 fn main() {
 
-    let mut conn = Connection::new();
+    let mut position = Position::new();
+    position.set_time(1000);
+    position.set_x(1);
+    position.set_y(2323);
+    position.set_z(3434);
+    let bytes = position.write_to_bytes().unwrap();
+    println!("{:?}", bytes);
+
+    let mut read_pos: Position = protobuf::parse_from_bytes(bytes.as_ref()).unwrap();
+
+    println!("Deserialized: time: {}, x: {}, y: {}, z: {}", read_pos.time, read_pos.x, read_pos.y, read_pos.z);
+
+    let conn = Connection::new();
     conn.connect_to_server();
 
 //    let mut manager = MotorManager::new();
