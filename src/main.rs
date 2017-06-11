@@ -20,9 +20,8 @@ mod proto {
 use protobuf::Message;
 use proto::position::Position;
 
-mod tasker;
 mod connection;
-use connection::Connection;
+use connection::Peer;
 
 
 #[cfg(rpi)]
@@ -35,20 +34,9 @@ const MOTOR_3 : u32 = 20;
 const MOTOR_4 : u32 = 21;
 
 fn main() {
-    let mut position = Position::new();
-    position.set_time(1000);
-    position.set_x(1);
-    position.set_y(2323);
-    position.set_z(3434);
-    let bytes = position.write_to_bytes().unwrap();
-    println!("{:?}", bytes);
 
-    let read_pos: Position = protobuf::parse_from_bytes(bytes.as_ref()).unwrap();
-
-    println!("Deserialized: time: {}, x: {}, y: {}, z: {}", read_pos.time, read_pos.x, read_pos.y, read_pos.z);
-
-    let conn = Connection::new();
-    conn.connect_to_server();
+    let peer = Peer::new();
+    peer.connect_to_server();
 
 //    let mut manager = MotorManager::new();
 //    manager.new_motor(MOTOR_1);
