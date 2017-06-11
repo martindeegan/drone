@@ -2,3 +2,5 @@
 target/
 src/proto
 third_party/
+.DS_Store
+

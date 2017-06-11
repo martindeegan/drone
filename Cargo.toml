@@ -5,10 +5,8 @@ authors = ["Thomas Deegan <tadeegan@gmail.com>", "Martin Deegan <mddeegan@gmail.
 
 [dependencies]
 rust-pigpio = "0.2.0"
+sensors = {path = "./sensors", version = "0.1.0"}
 
 [[bin]]
 name = "drone"
 path = "src/main.rs"
-
-# [profile.dev]
-# opt-level = 3
