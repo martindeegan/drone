@@ -99,11 +99,11 @@ impl MotorManager {
     }
 }
 
-impl std::ops::Drop for MotorManager {
-    fn drop(&mut self) {
-        self.terminate();
-    }
-}
+//impl std::ops::Drop for MotorManager {
+//    fn drop(&mut self) {
+//        self.terminate();
+//    }
+//}
 
 pub struct Motor {
     pin: u32,

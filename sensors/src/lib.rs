@@ -10,7 +10,7 @@ use i2cdev::core::*;
 use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
 
 use byteorder::{ByteOrder, LittleEndian};
-use std::ops::{Add, Sub, Mul};
+use std::ops::{Add, Sub, Mul, Div};
 
 const L3G_CTRL_REG1 : u8 = 0x20;
 const L3G_CTRL_REG2 : u8 = 0x21;
@@ -158,6 +158,19 @@ impl Mul<f32> for GyroSensorData {
     }
 }
 
+
+impl Div<f32> for GyroSensorData {
+    type Output = GyroSensorData;
+
+    fn div(self, f: f32) -> GyroSensorData {
+        GyroSensorData {
+            x: self.x / f,
+            y: self.y / f,
+            z: self.z / f,
+        }
+    }
+}
+
 fn initGyro(mut device : &mut LinuxI2CDevice) {
     // init sequence
     device.smbus_write_byte_data(L3G_CTRL_REG1, 0b00001111).unwrap();
@@ -203,6 +216,9 @@ use std::error::Error;
 // Maybe go lower?
 const offset_growth : f32 = 0.001;
 
+const KP: f32 = 0.032029;
+const KI: f32 = 0.244381;
+const KD: f32 = 0.000529;
 
 pub fn start() -> Result<Receiver<GyroSensorData>, LinuxI2CError> {
     let sample_time = std::time::Duration::from_millis(30);
@@ -252,22 +268,31 @@ pub fn start() -> Result<Receiver<GyroSensorData>, LinuxI2CError> {
                     // PID loop.
                     let (error_transmiter, error_receiver): (Sender<GyroSensorData>, Receiver<GyroSensorData>) = channel();
                     std::thread::spawn(move || {
-                        let PID_sample_time = std::time::Duration::from_millis(100);
-                        let mut last_sample_time = Instant::now();;
-
+                        let PID_sample_time = std::time::Duration::from_millis(50);
+                        let mut last_sample_time = Instant::now();
+                        let mut last_proportional: GyroSensorData = GyroSensorData{ x: 0.0, y: 0.0, z: 0.0};
+                        let mut Ki = GyroSensorData{ x: 0.0, y: 0.0, z: 0.0};
                         loop {
                             let dt: f32 = Instant::now().duration_since(last_sample_time).subsec_nanos() as f32 / 1000000000.0;
                             last_sample_time = Instant::now();
                             // Sync wait for at least one update from the sensors.
-                            let mut sum = receiver.recv().unwrap();
+                            let mut proportional = receiver.recv().unwrap();
+
                             // Get most recent message from the channel.
                             loop {
                                 match receiver.try_recv() {
-                                    Ok(msg) => {sum = msg;},
+                                    Ok(msg) => {proportional = msg;},
                                     Err(_) => break
                                 }
                             }
-                            error_transmiter.send(sum);
+
+                            let Kd = (proportional - last_proportional) / dt;
+                            last_proportional = proportional;
+                            Ki = Ki + (proportional * dt);
+
+                            let err = proportional * KP + Kd * KD +  Ki * KI;
+
+                            error_transmiter.send(err);
                             // Sleep until the sample time has passed +- 10 millis.
                             while !(Instant::now().duration_since(last_sample_time) < PID_sample_time) {
                                 thread::sleep(Duration::from_millis(20));
