@@ -1,11 +1,12 @@
 [package]
-name = "l3g_gyro"
+name = "sensors"
 version = "0.1.0"
 authors = ["Thomas Deegan <tadeegan@gmail.com>"]
 
 [dependencies]
 time = "0.1"
-i2cdev = {path = "../rust-i2cdev"}
+i2cdev = "0.3.1"
+byteorder = "^0.4.2"
 
 [[bin]]
 name = "sample"
