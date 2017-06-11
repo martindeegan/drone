@@ -1,14 +1,16 @@
 extern crate i2cdev;
 
 extern crate time;
+extern crate byteorder;
 
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration,Instant};
 
 use i2cdev::core::*;
 use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
-use i2cdev::sensors::{Gyroscope};
-use i2cdev::sensors::L3g_gyro::*;
+
+use byteorder::{ByteOrder, LittleEndian};
+use std::ops::{Add, Sub};
 
 const L3G_CTRL_REG1 : u8 = 0x20;
 const L3G_CTRL_REG2 : u8 = 0x21;
@@ -108,19 +110,40 @@ const LSM303DLM_OUT_Y_L_M  : u8   = 0x08;
 const LSM303DLHC_OUT_Z_H_M : u8   = 0x05;
 const LSM303DLHC_OUT_Z_L_M : u8   = 0x06;
 
-type DegreesPerSecond = i16;
+type DegreesPerSecond = f32;
 
-#[derive(Debug)]
-struct GyroSensorData {
-    x : DegreesPerSecond,
-    y : DegreesPerSecond,
-    z : DegreesPerSecond,
+#[derive(Copy, Clone, Debug)]
+struct OrientationData<T : Add + Sub> {
+    x: T,
+    y: T,
+    z: T
 }
 
-struct AccelerometerData {
-    x : DegreesPerSecond,
-    y : DegreesPerSecond,
-    z : DegreesPerSecond,
+type AccelerometerData = OrientationData<i16>;
+type GyroSensorData = OrientationData<DegreesPerSecond>;
+
+impl Add for GyroSensorData {
+    type Output = GyroSensorData;
+
+    fn add(self, f: GyroSensorData) -> GyroSensorData {
+        GyroSensorData {
+            x: self.x + f.x,
+            y: self.y + f.y,
+            z: self.z + f.z,
+        }
+    }
+}
+
+impl Sub for GyroSensorData {
+    type Output = GyroSensorData;
+
+    fn sub(self, f: GyroSensorData) -> GyroSensorData {
+        GyroSensorData {
+            x: self.x - f.x,
+            y: self.y - f.y,
+            z: self.z - f.z,
+        }
+    }
 }
 
 fn initGyro(mut device : &mut LinuxI2CDevice) {
@@ -134,9 +157,9 @@ fn initGyro(mut device : &mut LinuxI2CDevice) {
 fn sampleGyro(mut device : &mut LinuxI2CDevice) -> GyroSensorData {
     let results : Vec<u8> = device.smbus_read_i2c_block_data(0x80 | L3G_OUT_X_L, 6).unwrap();
     // This comes in the wrong order. WOW!
-    let x : i16 = (((results[1] as u16) << 8)  | (results[0] as u16) ) as i16 * G_GAIN;
-    let y : i16 = (((results[3] as u16) << 8) | (results[2] as u16)) as i16 * G_GAIN;
-    let z : i16 = (((results[5] as u16) << 8) | (results[4] as u16)) as i16 * G_GAIN;
+    let x = (((results[1] as i16) << 8)  | (results[0] as i16) ) as f32 * G_GAIN;
+    let y = (((results[3] as i16) << 8) | (results[2] as i16)) as f32 * G_GAIN;
+    let z = (((results[5] as i16) << 8) | (results[4] as i16)) as f32 * G_GAIN;
     GyroSensorData {x: x, y: y, z: z}
 }
 
@@ -150,42 +173,63 @@ fn initAccelerometer(mut device : &mut LinuxI2CDevice) {
 }
 
 
-fn sampleAccelerometer(mut device : &mut LinuxI2CDevice) -> SensorData {
-    let results : Vec<u8> = device.smbus_read_i2c_block_data(0x80 | LSM303_OUT_X_L_A, 6).unwrap();
-    let x : i16 = ((results[0] as u16 | (results[1] as u16) << 8) >> 4) as i16;
-    let y : i16 = ((results[2] as u16 | (results[3] as u16) << 8) >> 4) as i16;
-    let z : i16 = ((results[4] as u16 | (results[5] as u16) << 8) >> 4) as i16;
-    SensorData {x: x, y: y, z: z}
+fn sampleAccelerometer(mut device : &mut LinuxI2CDevice) -> AccelerometerData {
+    let buf : Vec<u8> = device.smbus_read_i2c_block_data(0x80 | LSM303_OUT_X_L_A, 6).unwrap();
+    let x : i16 = LittleEndian::read_i16(&[buf[0], buf[1]]);
+    let y : i16 = LittleEndian::read_i16(&[buf[2], buf[3]]);
+    let z : i16 = LittleEndian::read_i16(&[buf[4], buf[5]]);
+    AccelerometerData {x: x, y: y, z: z}
 }
 
+
+
 pub fn main() {
+    let sample_time = std::time::Duration::from_millis(20);
     match LinuxI2CDevice::new("/dev/i2c-1", GYRO_ADDRESS) {
-        Ok(dev) => {
-            let gyro =
-            loop {
-
-                thread::sleep(Duration::from_millis(3));
-            }
-//            runGyro(dev);
-        },
-        Err(e) => println!("Err: {}", e)
-    }
-
-    match LinuxI2CDevice::new("/dev/i2c-1", ACCELEROMETER_ADDRESS) {
+        
         Ok(mut device) => {
-            //            runGyro(dev);
-            initAccelerometer(&mut device);
-            let loop_time = 20; //ms
+            initGyro(&mut device);
+            let mut previous = sampleGyro(&mut device);
+            let mut sum = GyroSensorData { x: 0.0, y: 0.0, z: 0.0};
+            let mut last_sample_time = Instant::now();
             loop {
-                let read_time = time::precise_time_ns();
-                let res = sampleAccelerometer(&mut device);
-                println!("accelerometer: {:?}", res);
-                if time::precise_time_ns() - read_time > loop_time * 1000000 {
-                    break;
+                let dt :f32 = Instant::now().duration_since(last_sample_time).subsec_nanos() as f32 / 1000000000.0;
+                last_sample_time = Instant::now();
+                // Returns angular speed with respect to time. degrees/dt
+                let degressPerTime = sampleGyro(&mut device);
+                let changeInDegrees = GyroSensorData {
+                    x: degressPerTime.x * dt,
+                    y: degressPerTime.y * dt,
+                    z: degressPerTime.z * dt
+                };
+                sum = sum + changeInDegrees;
+                previous = degressPerTime;
+                println!("sum: {}", sum.y);
+
+                // Sleep until the sample time has passed +- 10 millis.
+                while !(Instant::now().duration_since(last_sample_time) < sample_time) {
+                    thread::sleep(Duration::from_millis(10));
                 }
-                thread::sleep(Duration::from_millis(1));
             }
         },
         Err(e) => println!("Err: {}", e)
     }
+
+//    match LinuxI2CDevice::new("/dev/i2c-1", ACCELEROMETER_ADDRESS) {
+//        Ok(mut device) => {
+//            //            runGyro(dev);
+//            initAccelerometer(&mut device);
+//            let loop_time = 20; //ms
+//            loop {
+//                let read_time = time::precise_time_ns();
+//                let res = sampleAccelerometer(&mut device);
+//                println!("accelerometer: {:?}", res);
+//                if time::precise_time_ns() - read_time > loop_time * 1000000 {
+//                    break;
+//                }
+//                thread::sleep(Duration::from_millis(50));
+//            }
+//        },
+//        Err(e) => println!("Err: {}", e)
+//    }
 }
