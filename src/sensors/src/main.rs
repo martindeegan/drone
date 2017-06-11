@@ -10,7 +10,7 @@ use i2cdev::core::*;
 use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
 
 use byteorder::{ByteOrder, LittleEndian};
-use std::ops::{Add, Sub};
+use std::ops::{Add, Sub, Mul};
 
 const L3G_CTRL_REG1 : u8 = 0x20;
 const L3G_CTRL_REG2 : u8 = 0x21;
@@ -146,6 +146,18 @@ impl Sub for GyroSensorData {
     }
 }
 
+impl Mul<f32> for GyroSensorData {
+    type Output = GyroSensorData;
+
+    fn mul(self, f: f32) -> GyroSensorData {
+        GyroSensorData {
+            x: self.x * f,
+            y: self.y * f,
+            z: self.z * f,
+        }
+    }
+}
+
 fn initGyro(mut device : &mut LinuxI2CDevice) {
     // init sequence
     device.smbus_write_byte_data(L3G_CTRL_REG1, 0b00001111).unwrap();
@@ -182,39 +194,58 @@ fn sampleAccelerometer(mut device : &mut LinuxI2CDevice) -> AccelerometerData {
 }
 
 
+use f32::consts::PI;
+use std::f32;
 
 pub fn main() {
     let sample_time = std::time::Duration::from_millis(20);
     match LinuxI2CDevice::new("/dev/i2c-1", GYRO_ADDRESS) {
-        
-        Ok(mut device) => {
-            initGyro(&mut device);
-            let mut previous = sampleGyro(&mut device);
-            let mut sum = GyroSensorData { x: 0.0, y: 0.0, z: 0.0};
-            let mut last_sample_time = Instant::now();
-            loop {
-                let dt :f32 = Instant::now().duration_since(last_sample_time).subsec_nanos() as f32 / 1000000000.0;
-                last_sample_time = Instant::now();
-                // Returns angular speed with respect to time. degrees/dt
-                let degressPerTime = sampleGyro(&mut device);
-                let changeInDegrees = GyroSensorData {
-                    x: degressPerTime.x * dt,
-                    y: degressPerTime.y * dt,
-                    z: degressPerTime.z * dt
-                };
-                sum = sum + changeInDegrees;
-                previous = degressPerTime;
-                println!("sum: {}", sum.y);
+        Ok(mut gyroscope) => {
+            match LinuxI2CDevice::new("/dev/i2c-1", ACCELEROMETER_ADDRESS) {
+                Ok(mut accelerometer) => {
+                    initGyro(&mut gyroscope);
+                    initAccelerometer(&mut accelerometer);
+                    // Assume we start on a relatively flat surface.
+                    let mut sum = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
+                    let mut last_sample_time = Instant::now();
+                    // We add an offset to account for the gyro's tendency to randomly increase.
+                    let mut gyro_offset = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
+                    loop {
+                        let dt: f32 = Instant::now().duration_since(last_sample_time).subsec_nanos() as f32 / 1000000000.0;
+                        last_sample_time = Instant::now();
+                        // Returns angular speed with respect to time. degrees/dt
+                        let degressPerTime = sampleGyro(&mut gyroscope);
+                        let changeInDegrees = GyroSensorData {
+                            x: degressPerTime.x * dt,
+                            y: degressPerTime.y * dt,
+                            z: degressPerTime.z * dt
+                        };
+//                        println!("gyro drift X: {}", degressPerTime.x);
+                        sum = sum + changeInDegrees;
 
-                // Sleep until the sample time has passed +- 10 millis.
-                while !(Instant::now().duration_since(last_sample_time) < sample_time) {
-                    thread::sleep(Duration::from_millis(10));
-                }
+                        let linearAccelerationPerTime = sampleAccelerometer(&mut accelerometer);
+
+                        let angleX = (linearAccelerationPerTime.x as f32).atan2(linearAccelerationPerTime.z as f32) * 180.0 / PI;
+                        let angleY = (linearAccelerationPerTime.y as f32).atan2(linearAccelerationPerTime.z as f32) * 180.0 / PI;
+
+                        sum = sum  * 0.98+ GyroSensorData {x: angleX, y: angleY, z: sum.z} * 0.02;
+
+                        println!("------------");
+                        println!("Angle X: {}", sum.x);
+                        println!("Angle Y: {}", sum.y);
+
+                        // Sleep until the sample time has passed +- 10 millis.
+                        while !(Instant::now().duration_since(last_sample_time) < sample_time) {
+                            thread::sleep(Duration::from_millis(10));
+                        }
+                    }
+                },
+                Err(e) => println!("Failed to connect to accelerometer. {}", e)
             }
         },
-        Err(e) => println!("Err: {}", e)
+        Err(e) => println!("Failed to connect to gyro. {}", e)
     }
-
+//
 //    match LinuxI2CDevice::new("/dev/i2c-1", ACCELEROMETER_ADDRESS) {
 //        Ok(mut device) => {
 //            //            runGyro(dev);
