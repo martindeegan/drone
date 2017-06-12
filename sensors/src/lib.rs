@@ -220,7 +220,7 @@ const KP: f32 = 0.032029;
 const KI: f32 = 0.244381;
 const KD: f32 = 0.000529;
 
-pub fn start() -> Result<Receiver<GyroSensorData>, LinuxI2CError> {
+pub fn start_sensors() -> Result<Receiver<GyroSensorData>, LinuxI2CError> {
     let sample_time = std::time::Duration::from_millis(30);
 
     let (transmitter, receiver): (Sender<GyroSensorData>, Receiver<GyroSensorData>) = channel();
@@ -255,7 +255,7 @@ pub fn start() -> Result<Receiver<GyroSensorData>, LinuxI2CError> {
                             let angle_acc_y = (linear_acceleration.y as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
 
                             // Comment this out to just try the gyro readings.
-                            sum = sum  * 0.98+ GyroSensorData {x: angle_acc_x, y: angle_acc_y, z: sum.z} * 0.02;
+                            sum = sum  * 0.98 + GyroSensorData {x: angle_acc_x, y: angle_acc_y, z: sum.z} * 0.02;
 
                             transmitter.send(sum).unwrap();// Should handle error here in the future.
 
@@ -265,41 +265,8 @@ pub fn start() -> Result<Receiver<GyroSensorData>, LinuxI2CError> {
                             }
                         }
                     });
-                    // PID loop.
-                    let (error_transmiter, error_receiver): (Sender<GyroSensorData>, Receiver<GyroSensorData>) = channel();
-                    std::thread::spawn(move || {
-                        let PID_sample_time = std::time::Duration::from_millis(50);
-                        let mut last_sample_time = Instant::now();
-                        let mut last_proportional: GyroSensorData = GyroSensorData{ x: 0.0, y: 0.0, z: 0.0};
-                        let mut Ki = GyroSensorData{ x: 0.0, y: 0.0, z: 0.0};
-                        loop {
-                            let dt: f32 = Instant::now().duration_since(last_sample_time).subsec_nanos() as f32 / 1000000000.0;
-                            last_sample_time = Instant::now();
-                            // Sync wait for at least one update from the sensors.
-                            let mut proportional = receiver.recv().unwrap();
 
-                            // Get most recent message from the channel.
-                            loop {
-                                match receiver.try_recv() {
-                                    Ok(msg) => {proportional = msg;},
-                                    Err(_) => break
-                                }
-                            }
-
-                            let Kd = (proportional - last_proportional) / dt;
-                            last_proportional = proportional;
-                            Ki = Ki + (proportional * dt);
-
-                            let err = proportional * KP + Kd * KD +  Ki * KI;
-
-                            error_transmiter.send(err);
-                            // Sleep until the sample time has passed +- 10 millis.
-                            while !(Instant::now().duration_since(last_sample_time) < PID_sample_time) {
-                                thread::sleep(Duration::from_millis(20));
-                            }
-                        }
-                    });
-                    return Ok(error_receiver);
+                    return Ok(receiver);
                 },
                 Err(e) => {
                     println!("Failed to connect to accelerometer. {}", e);
