@@ -220,6 +220,10 @@ const KP: f32 = 0.032029;
 const KI: f32 = 0.244381;
 const KD: f32 = 0.000529;
 
+pub fn STOP_SENSORS() {
+
+}
+
 pub fn start_sensors() -> Result<Receiver<GyroSensorData>, LinuxI2CError> {
     let sample_time = std::time::Duration::from_millis(30);
 

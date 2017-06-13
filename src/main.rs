@@ -5,6 +5,7 @@ extern crate time;
 #[cfg(rpi)]
 extern crate sensors;
 extern crate time;
+extern crate simple_signal;
 
 use std::io::stdin;
 use std::string::String;
@@ -37,50 +38,14 @@ const MOTOR_4 : u32 = 21;
 
 fn main() {
 
+    simple_signal::set_handler(&[simple_signal::Signal::Int], |signals| {
+        println!("Ctrl C!");
+        motor::TERMINATE_ALL_MOTORS();
+        std::process::exit(0);
+    });
+
     balance();
-//    let mut manager = MotorManager::new();
-//    manager.new_motor(MOTOR_1);
-//    manager.new_motor(MOTOR_2);
-//    manager.new_motor(MOTOR_3);
-//    manager.new_motor(MOTOR_4);
-//
-//    println!("arm, balance, or calibrate");
-//    let mut input = String::new();
-//    stdin().read_line(&mut input).expect("Error");
-//
-//    match input.trim() {
-//        "arm" => {
-//            manager.arm();
-//        },
-//        "calibrate" => {
-//            manager.calibrate();
-//        },
-//        "balance" => {
-//            balance(manager);
-//        }
-//        _ => { }
-//    }
-//
-//    'input: loop {
-//        println!("Enter power between 1000-2000 or 'stop'");
-//        let mut input = String::new();
-//        stdin().read_line(&mut input).expect("Error");
-//
-//        match input.trim() {
-//            "stop" => {
-//                manager.terminate();
-//                break 'input
-//            },
-//            _ => {
-//                let x: u32 = input.trim().parse().unwrap_or(1100);
-//
-//                manager.set_power(0, x);
-//                manager.set_power(1, x);
-//                manager.set_power(2, x);
-//                manager.set_power(3 , x);
-//            }
-//        }
-//    }
+
 }
 
 const FLOATING_POWER : u32 = 1100;
@@ -98,8 +63,8 @@ fn balance() {
     stdin().read_line(&mut input).expect("Error");
 
     manager.arm();
-    manager.start_pid_loop();
-
+//    manager.start_pid_loop();
+    
     'input: loop {
         println!("Enter 'stop'");
         let mut input = String::new();
@@ -109,9 +74,13 @@ fn balance() {
             "stop" => {
                 motor::TERMINATE_ALL_MOTORS();
                 std::process::exit(0);
-                break 'input
+                break 'input;
             },
-            _ => {}
+            _ => {
+                motor::TERMINATE_ALL_MOTORS();
+                std::process::exit(0);
+                break 'input;
+            }
         }
     }
 }

@@ -10,6 +10,7 @@ protobuf = "1.2.2"
 time = "0.1"
 sensors = {path = "./sensors", version = "0.1.0"}
 time = "0.1"
+simple-signal = "1.1.0"
 
 [build-dependencies]
 protoc-rust = { path = "third_party/rust-protobuf/protoc-rust" }
