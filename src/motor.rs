@@ -102,6 +102,9 @@ impl MotorManager {
 
     pub fn start_pid_loop(&self) {
         let mut sensor_input: Receiver<GyroSensorData>;
+        let mut controller_input = connection::get_peer() {
+
+        }
         match start_sensors() {
             Ok(recv) => { sensor_input = recv; },
             Err(e) => {

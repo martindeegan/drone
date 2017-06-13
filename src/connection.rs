@@ -30,6 +30,12 @@ const LOCAL_ADDR: &str = "0.0.0.0:27136";
 
 const POSITION_ID: u8 = 1;
 
+static mut peer: Peer = Peer::new();
+
+pub fn get_peer() -> Peer {
+    unsafe { peer }
+}
+
 pub struct Peer {
     sock: UdpSocket,
     position_sub: Sender<Position>,
@@ -86,7 +92,11 @@ impl Peer {
             thread::sleep(Duration::seconds(1).to_std().unwrap());
         }
 
-        println!("");
+        for i in 0..5 {
+            let msg: String = String::from_str("Hello").unwrap();
+            self.sock.send(msg.as_bytes());
+            thread::sleep(Duration::seconds(1).to_std().unwrap());
+        }
 
         let msg: String = String::from_str("Connected").unwrap();
         self.sock.send(msg.as_bytes());
