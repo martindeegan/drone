@@ -7,7 +7,7 @@ use std::thread::sleep;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-const MAX_VALUE : u32 = 1975;
+const MAX_VALUE : u32 = 1400;
 const MIN_VALUE : u32 = 1100;
 
 use std::f32;
@@ -18,11 +18,14 @@ use sensors::GyroSensorData;
 use sensors::start_sensors;
 
 use std::time::Instant;
+use time;
 
 use std::io;
 use std::io::Write;
 
 use connection::Peer;
+
+use config::Config;
 
 const MAX_ERROR: f32 = 200.0;
 const MAX_PID_POWER: f32 = 1400.0;
@@ -98,7 +101,7 @@ impl MotorManager {
 
     //PID STUFF
 
-    pub fn start_pid_loop(&self/*, &mut peer: Peer*/) {
+    pub fn start_pid_loop(&self, config: Config) {
         let mut sensor_input: Receiver<GyroSensorData>;
 //        let mut controller_input = peer.subscribe_position();
         match start_sensors() {
@@ -119,16 +122,15 @@ impl MotorManager {
             let mut desired_orientation = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
 
 
-            let mut last_sample_time = Instant::now();
+            let mut last_sample_time = time::PreciseTime::now();
 
             let mut integral = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
             let mut last_proportional = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
 
+            let now = time::PreciseTime::now();
+
+            writeln!(&mut std::io::stderr(), "time,power,p,i,d");
             loop {
-                let dt: f32 = Instant::now().duration_since(last_sample_time).subsec_nanos() as f32 / 1000000000.0;
-                let mut last_sample_time = Instant::now();
-
-
                 //                match controller_input.try_recv() {
                 //                    Ok(orientation) => { desired_orientation = orientation; },
                 //                    TryRecvError::Empty => { },
@@ -148,15 +150,18 @@ impl MotorManager {
                     //                    }
                 }
 
+                let t = time::PreciseTime::now();
+                let dt: f32 = last_sample_time.to(t).num_microseconds().unwrap() as f32 / 1000000.0;
+                let mut last_sample_time = t;
 
                 //Safety check
-                if current_orientation.x > 30.0 || current_orientation.x < -30.0
-                    || current_orientation.y > 30.0 || current_orientation.y < -30.0 {
+                if current_orientation.x.abs() > config.motor_cutoff {
+                    println!("Tilted too far. {:?}", current_orientation);
                     TERMINATE_ALL_MOTORS();
                     std::process::exit(0);
                 }
 
-                let proportional = (desired_orientation - current_orientation) / 45.0;
+                let proportional = (desired_orientation - current_orientation);
 
                 integral = integral + proportional * dt;
                 integral = integral * 0.998;
@@ -164,14 +169,12 @@ impl MotorManager {
                 let derivative = (proportional - last_proportional) / dt;
                 last_proportional = proportional;
 
-                //                println!("integral {}", integral);
+                let (m1, m2, m3, m4) = calculate_corrections(&config, proportional, integral, derivative, &now);
 
-                let (m1, m2, m3, m4) = calculate_corrections(proportional, integral, derivative);
-
-                set_power(MOTOR_1, m1);
-                set_power(MOTOR_2, m2);
-                set_power(MOTOR_3, m3);
-                set_power(MOTOR_4, m4);
+//                set_power(MOTOR_1, m1);
+//                set_power(MOTOR_2, m2);
+//                set_power(MOTOR_3, m3);
+//                set_power(MOTOR_4, m4);
 
                 println!("a: {}", format!("{:.2}", current_orientation.x));
             }
@@ -179,7 +182,10 @@ impl MotorManager {
     }
 }
 
-//                   //Cleanflight:
+// Cleanflight:
+//0.12029;
+// 0.244381;
+//0.000529;
 
 const MAX_RANGE: f32 = 300.0;
 const MIN_RANGE: f32 = 100.0;
@@ -187,31 +193,27 @@ const MIN_RANGE: f32 = 100.0;
 const MAX_MID_ACCEL: f32 = 10.0;
 const MAX_MIN_DECCEL: f32 = -10.0;
 
-const KP: f32 = 0.2; //0.12029;
-const KI: f32 = 0.0; //0.244381;
-const KD: f32 = 0.0; //0.000529;
-
-fn calculate_corrections(prop: GyroSensorData, int: GyroSensorData, der: GyroSensorData) -> (u32, u32, u32, u32) {
-    let mid = 1250.0;
+fn calculate_corrections(config: &Config, prop: GyroSensorData, integral: GyroSensorData, der: GyroSensorData, time: &time::PreciseTime) -> (u32, u32, u32, u32) {
+    let mid = 1200.0;
     let range = 150.0;
 
-    let u: GyroSensorData = prop * KP + int * KI + der * KD;
+    let u: GyroSensorData = prop * config.kp + integral * config.ki + der * config.kd;
     let power = u * range;
+
+    println!("prop.x (deg): {}", prop.x);
+    println!("power.x: {}", power.x);
+
+    writeln!(&mut std::io::stderr(), "{},{},{},{},{}", time.to(time::PreciseTime::now()).num_microseconds().unwrap(), u.x, (prop * config.kp).x, (integral * config.ki).x, (der * config.kd).x);
 
     let x_1 = mid - power.x;
     let x_2 = mid - power.x;
     let x_3 = mid + power.x;
     let x_4 = mid + power.x;
 
-    let y_2 = mid - power.y;
-    let y_3 = mid - power.y;
-    let y_1 = mid + power.y;
-    let y_4 = mid + power.y;
-
-    (((x_1 + y_1) / 2.0) as u32,
-    ((x_2 + y_2) / 2.0) as u32,
-    ((x_3 + y_3) / 2.0) as u32,
-    ((x_4 + y_4) / 2.0) as u32)
+    (x_1 as u32,
+     x_2 as u32,
+     x_3 as u32,
+     x_4 as u32)
 }
 
 fn calculate_error(current: GyroSensorData, desired: GyroSensorData) -> f32 {

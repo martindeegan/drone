@@ -4,6 +4,12 @@ extern crate time;
 extern crate sensors;
 extern crate simple_signal;
 
+extern crate serde;
+extern crate serde_json;
+
+#[macro_use]
+extern crate serde_derive;
+
 use std::io::stdin;
 use std::string::String;
 
@@ -20,12 +26,12 @@ use proto::position::Position;
 mod connection;
 use connection::Peer;
 
-const MOTOR_1 : u32 = 18;
-const MOTOR_2 : u32 = 19;
-const MOTOR_3 : u32 = 20;
-const MOTOR_4 : u32 = 21;
+mod config;
+use config::Config;
 
 fn main() {
+
+    let config = Config::new();
 
     simple_signal::set_handler(&[simple_signal::Signal::Int], |signals| {
         println!("Ctrl C!");
@@ -35,17 +41,17 @@ fn main() {
 
 //    let mut peer = Peer::new();
     let mut manager = MotorManager::new();
-    manager.new_motor(MOTOR_1);
-    manager.new_motor(MOTOR_2);
-    manager.new_motor(MOTOR_3);
-    manager.new_motor(MOTOR_4);
+    manager.new_motor(config.motors[0]);
+    manager.new_motor(config.motors[1]);
+    manager.new_motor(config.motors[2]);
+    manager.new_motor(config.motors[3]);
 
     println!("Press enter to self control.");
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
 
-    manager.arm();
-    manager.start_pid_loop();
+//    manager.arm();
+    manager.start_pid_loop(config);
 
     'input: loop {
         println!("Enter 'stop'");
@@ -59,6 +65,7 @@ fn main() {
                 break 'input;
             },
             _ => {
+                println!("unrecognized input...");
                 motor::TERMINATE_ALL_MOTORS();
                 std::process::exit(0);
                 break 'input;
