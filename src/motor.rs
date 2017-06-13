@@ -1,5 +1,3 @@
-#![cfg(rpi)] //Add to .bashrc: export RUST_PI_COMPILATION="rpi"
-
 use rust_pigpio::*;
 use rust_pigpio::pwm::*;
 
@@ -24,7 +22,7 @@ use std::time::Instant;
 use std::io;
 use std::io::Write;
 
-
+use connection::Peer;
 
 const MAX_ERROR: f32 = 200.0;
 const MAX_PID_POWER: f32 = 1400.0;
@@ -100,11 +98,9 @@ impl MotorManager {
 
     //PID STUFF
 
-    pub fn start_pid_loop(&self) {
+    pub fn start_pid_loop(&self/*, &mut peer: Peer*/) {
         let mut sensor_input: Receiver<GyroSensorData>;
-        let mut controller_input = connection::get_peer() {
-
-        }
+//        let mut controller_input = peer.subscribe_position();
         match start_sensors() {
             Ok(recv) => { sensor_input = recv; },
             Err(e) => {
@@ -112,7 +108,6 @@ impl MotorManager {
                 return;
             }
         };
-        //let mut controller_input = peer.subscribe();
 
         let MOTOR_1 = self.motors[0];
         let MOTOR_2 = self.motors[1];
@@ -126,7 +121,7 @@ impl MotorManager {
 
             let mut last_sample_time = Instant::now();
 
-            let mut integral: f32 = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
+            let mut integral = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
             let mut last_proportional = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
 
             loop {
@@ -163,7 +158,7 @@ impl MotorManager {
 
                 let proportional = (desired_orientation - current_orientation) / 45.0;
 
-                integral = (integral + prop * dt);
+                integral = integral + proportional * dt;
                 integral = integral * 0.998;
 
                 let derivative = (proportional - last_proportional) / dt;
@@ -189,8 +184,8 @@ impl MotorManager {
 const MAX_RANGE: f32 = 300.0;
 const MIN_RANGE: f32 = 100.0;
 
-const MAX_MID_ACCEL: f32 = 10;
-const MAX_MIN_DECCEL: f32 = -10;
+const MAX_MID_ACCEL: f32 = 10.0;
+const MAX_MIN_DECCEL: f32 = -10.0;
 
 const KP: f32 = 0.2; //0.12029;
 const KI: f32 = 0.0; //0.244381;
@@ -213,10 +208,10 @@ fn calculate_corrections(prop: GyroSensorData, int: GyroSensorData, der: GyroSen
     let y_1 = mid + power.y;
     let y_4 = mid + power.y;
 
-    ((x_1 + y_1) / 2,
-     (x_2 + y_2) / 2,
-     (x_3 + y_3) / 2,
-     (x_4 + y_4) / 2)
+    (((x_1 + y_1) / 2.0) as u32,
+    ((x_2 + y_2) / 2.0) as u32,
+    ((x_3 + y_3) / 2.0) as u32,
+    ((x_4 + y_4) / 2.0) as u32)
 }
 
 fn calculate_error(current: GyroSensorData, desired: GyroSensorData) -> f32 {

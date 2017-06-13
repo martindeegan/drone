@@ -30,12 +30,6 @@ const LOCAL_ADDR: &str = "0.0.0.0:27136";
 
 const POSITION_ID: u8 = 1;
 
-static mut peer: Peer = Peer::new();
-
-pub fn get_peer() -> Peer {
-    unsafe { peer }
-}
-
 pub struct Peer {
     sock: UdpSocket,
     position_sub: Sender<Position>,

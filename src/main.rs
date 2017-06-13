@@ -1,8 +1,6 @@
-#[cfg(rpi)]
 extern crate rust_pigpio;
 extern crate protobuf;
 extern crate time;
-#[cfg(rpi)]
 extern crate sensors;
 extern crate simple_signal;
 
@@ -11,7 +9,6 @@ use std::string::String;
 
 mod motor;
 use motor::MotorManager;
-use motor::Motor;
 
 mod proto {
     pub mod position;
@@ -23,6 +20,11 @@ use proto::position::Position;
 mod connection;
 use connection::Peer;
 
+const MOTOR_1 : u32 = 18;
+const MOTOR_2 : u32 = 19;
+const MOTOR_3 : u32 = 20;
+const MOTOR_4 : u32 = 21;
+
 fn main() {
 
     simple_signal::set_handler(&[simple_signal::Signal::Int], |signals| {
@@ -31,7 +33,7 @@ fn main() {
         std::process::exit(0);
     });
 
-
+//    let mut peer = Peer::new();
     let mut manager = MotorManager::new();
     manager.new_motor(MOTOR_1);
     manager.new_motor(MOTOR_2);
@@ -67,19 +69,4 @@ fn main() {
 
 const FLOATING_POWER : u32 = 1100;
 const MAX_POWER : u32 = 1400;
-
-#[cfg(rpi)]
-const MOTOR_1 : u32 = 18;
-#[cfg(rpi)]
-const MOTOR_2 : u32 = 19;
-#[cfg(rpi)]
-const MOTOR_3 : u32 = 20;
-#[cfg(rpi)]
-const MOTOR_4 : u32 = 21;
-
-fn balance() {
-
-
-
-}
 

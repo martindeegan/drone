@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 extern crate i2cdev;
 
 extern crate time;
