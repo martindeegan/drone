@@ -9,7 +9,7 @@ use std::thread::JoinHandle;
 use std::collections::VecDeque;
 use std::time::Duration;
 use std::f32;
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::{Sender, Receiver, TryRecvError};
 
 const MAX_VALUE: u32 = 1400;
 const MIN_VALUE: u32 = 1100;
@@ -27,8 +27,14 @@ use config::Config;
 
 use debug_server;
 
-pub fn terminate_all_motors() {
+pub struct MotorManager {
+    pub motors: Vec<u32>,
+}
+
+pub fn terminate_all_motors(debug_pipe : Sender<debug_server::Signal>) {
     println!("TERMINATING MOTORS!");
+
+    debug_pipe.send(debug_server::Signal::Stop);
 
     for x in Config::new().motors {
         write(x, OFF);
@@ -36,10 +42,6 @@ pub fn terminate_all_motors() {
 
     terminate();
     sleep(Duration::from_secs(1));
-}
-
-pub struct MotorManager {
-    pub motors: Vec<u32>,
 }
 
 impl MotorManager {
@@ -91,8 +93,7 @@ impl MotorManager {
 
     //PID STUFF
 
-    pub fn start_pid_loop(&self, config: Config) {
-        let debug_pipe = debug_server::init_debug_port();
+    pub fn start_pid_loop(&self, config: Config, debug_pipe : Sender<debug_server::Signal>) {
         let sensor_input: Receiver<GyroSensorData>;
         //        let mut controller_input = peer.subscribe_position();
         let sensor_poll_time = config.sensor_poll_time;
@@ -167,7 +168,7 @@ impl MotorManager {
                 //Safety check
                 if current_orientation.x.abs() > config.motor_cutoff {
                     println!("Tilted too far. {:?}", current_orientation);
-                    terminate_all_motors();
+                    terminate_all_motors(debug_pipe);
                     std::process::exit(0);
                 }
 
@@ -176,9 +177,8 @@ impl MotorManager {
                 last_n_samples.push_front(proportional * dt);
                 integral = integral + proportional * dt;
                 integral = integral * config.integral_decay_time;
-                let derivative = (last_proportional - proportional) / dt;
+                let derivative = (proportional - last_proportional) / dt;
                 last_proportional = proportional;
-
 
                 let range = 1.0;
 
@@ -196,9 +196,9 @@ impl MotorManager {
                     d: derivative.x * kd,
                 };
 
-                debug_pipe.send(debug_data);
+                debug_pipe.send(debug_server::Signal::Log(debug_data));
 
-                let mid = 1200.0;
+                let mid = config.hover_power as f32;
                 let x_1 = mid - power.x;
                 let x_2 = mid - power.x;
                 let x_3 = mid + power.x;
@@ -239,7 +239,6 @@ impl std::ops::Drop for MotorManager {
     }
 }
 
-/* -------------------------- INDIVIDUAL MOTORS -------------------------------------*/
 
 fn initialize_motor(gpio_pin: u32) -> u32 {
     set_mode(gpio_pin, OUTPUT).unwrap();

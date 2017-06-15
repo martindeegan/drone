@@ -14,6 +14,7 @@ pub struct Config {
     pub sensor_poll_time: i64,
     pub motors_on: bool,
     pub integral_decay_time: f32,
+    pub hover_power: i32,
 }
 
 impl Config {

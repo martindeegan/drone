@@ -34,6 +34,7 @@ pub struct OrientationData<T : Add + Sub> {
     pub z: T
 }
 
+
 type AccelerometerData = OrientationData<i16>;
 pub type GyroSensorData = OrientationData<DegreesPerSecond>;
 
@@ -122,8 +123,7 @@ fn sample_accelerometer(mut device : &mut LinuxI2CDevice) -> AccelerometerData {
 }
 
 // Maybe go lower?
-const offset_growth : f32 = 0.001;
-
+const OFFSET_GROWTH: f32 = 0.001;
 
 pub fn start_sensors(sensor_poll_time: i64) -> Result<Receiver<GyroSensorData>, LinuxI2CError> {
 
@@ -152,7 +152,7 @@ pub fn start_sensors(sensor_poll_time: i64) -> Result<Receiver<GyroSensorData>, 
                             let change_in_degrees = degrees_per_second * dt;
 
                             // compute changing offset very slowly over time as to not interfere with actual changes.
-                            gyro_offset = gyro_offset * (1.0 - offset_growth) + change_in_degrees * offset_growth;
+                            gyro_offset = gyro_offset * (1.0 - OFFSET_GROWTH) + change_in_degrees * OFFSET_GROWTH;
                             sum = sum + change_in_degrees;
 
                             let linear_acceleration = sample_accelerometer(&mut accelerometer);

@@ -1,10 +1,11 @@
 {
-  "kp": 2.0,
-  "ki": 0.01,
+  "kp": 1.0,
+  "ki": 0.00,
   "kd": 0.0,
   "motors": [19, 20, 21, 26],
-  "motor_cutoff": 25.0,
-  "sensor_poll_time": 50,
+  "motor_cutoff": 32.0,
+  "sensor_poll_time": 30,
   "motors_on": false,
+  "hover_power": 1200,
   "integral_decay_time": 0.9
 }

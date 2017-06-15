@@ -5,6 +5,7 @@ src/proto
 rs,toml
 /.vscode
 /node_modules
+out.txt
 
 
 ## Ignore Visual Studio temporary files, build results, and
