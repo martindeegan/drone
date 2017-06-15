@@ -12,12 +12,12 @@ fn main() {
 
     protoc_rust::run(protoc_rust::Args {
         out_dir: "src/generated",
+        includes: &["protos"],
         input: &[
-            "proto/vector3.proto",
-            "proto/position.proto",
-            "proto/controller_input.proto"
-        ],
-        includes: &["proto"]
+            "protos/vector3.proto",
+            "protos/position.proto",
+            "protos/controller_input.proto"
+        ]
     }).expect("protoc");
 }
 
