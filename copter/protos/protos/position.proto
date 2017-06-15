@@ -1,0 +1,10 @@
+syntax="proto3";
+
+import "vector3.proto";
+
+message Position {
+    int32 id = 1;
+    int32 time = 2;
+    Vector3 orientation = 3;
+    float alititude = 4;
+}

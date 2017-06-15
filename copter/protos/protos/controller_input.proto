@@ -1,0 +1,11 @@
+syntax="proto3";
+
+import "vector3.proto";
+
+message ControllerInput {
+    int32 id = 1;
+    int32 time = 2;
+    Vector3 orientation = 3;
+    float vertical_velocity = 4;
+    float yaw_velocity = 5;
+}
