@@ -10,7 +10,6 @@ use std::collections::VecDeque;
 use std::time::Duration;
 use std::f32;
 use std::sync::mpsc::{Receiver, TryRecvError};
-use std::error::Error;
 
 const MAX_VALUE : u32 = 1400;
 const MIN_VALUE : u32 = 1100;
@@ -18,33 +17,25 @@ const MIN_VALUE : u32 = 1100;
 use sensors::GyroSensorData;
 use sensors::start_sensors;
 
-use std::time::Instant;
 use time;
 
-use std::io;
 use std::io::Write;
 
 use connection::Peer;
 
 use config::Config;
 
-use debug;
+use debug_server;
 
-const MAX_ERROR: f32 = 200.0;
-const MAX_PID_POWER: f32 = 1400.0;
-const MIN_PID_POWER: f32 = 1200.0;
-
-static mut ki_mut: f32 = 0.003;
-
-pub fn TERMINATE_ALL_MOTORS() {
+pub fn terminate_all_motors() {
     println!("TERMINATING MOTORS!");
 
-    write(19, OFF);
-    write(20, OFF);
-    write(21, OFF);
-    write(26, OFF);
+    for x in Config::new().motors {
+        write(x, OFF);
+    }
 
     terminate();
+    sleep(Duration::from_secs(1));
 }
 
 pub struct MotorManager {
@@ -98,15 +89,11 @@ impl MotorManager {
         self.motors.push(gpio_pin);
     }
 
-    pub fn set_power(&self, motor_num: u32, power: u32) {
-        set_power(motor_num, power);
-    }
-
     //PID STUFF
 
     pub fn start_pid_loop(&self, config: Config) {
-        let mut debug_pipe = debug::init_debug_port();
-        let mut sensor_input: Receiver<GyroSensorData>;
+        let debug_pipe = debug_server::init_debug_port();
+        let sensor_input: Receiver<GyroSensorData>;
 //        let mut controller_input = peer.subscribe_position();
         let sensor_poll_time = config.sensor_poll_time;
         match start_sensors(sensor_poll_time) {
@@ -142,24 +129,16 @@ impl MotorManager {
             let kd = config.kd;
 
             loop {
-                //                match controller_input.try_recv() {
-                //                    Ok(orientation) => { desired_orientation = orientation; },
-                //                    TryRecvError::Empty => { },
-                //                    TryRecvError::Disconnected => {
-                //                        println!("Lost connection with controller! Defaulting to level orientation.");
-                //                        desired_orientation = GyroSensorData{ x: 0.0, y: 0.0, z: 0.0};
-                //                    }
-                //                }
-
-                let mut current_orientation = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
-                match sensor_input.recv() {
-                    Ok(orientation) => { current_orientation = orientation; },
-                    Err(_) => {},
-                    //                    Err(TryRecvError::Disconnected) => {
-                    //                        println!("Lost connection with sensors! We're fucked!");
-                    //                        sensor_input = start_sensors().unwrap();
-                    //                    }
+                let mut current_orientation = sensor_input.recv().unwrap();
+                loop {
+                    match sensor_input.try_recv() {
+                        Ok(orientation) => { current_orientation = orientation; },
+                        Err(_) => {
+                            break;
+                        },
+                    }
                 }
+
 
                 let t = time::PreciseTime::now();
                 let dt: f32 = last_sample_time.to(t).num_microseconds().unwrap() as f32 / 1000000.0;
@@ -168,27 +147,25 @@ impl MotorManager {
                 //Safety check
                 if current_orientation.x.abs() > config.motor_cutoff {
                     println!("Tilted too far. {:?}", current_orientation);
-                    TERMINATE_ALL_MOTORS();
+                    terminate_all_motors();
                     std::process::exit(0);
                 }
 
                 let proportional = (desired_orientation - current_orientation);
 
                 last_n_samples.push_front(proportional * dt);
-                if last_n_samples.capacity() > (config.integral_decay_time * 1000000.0) as usize / sensor_poll_time as usize {
-                    int_decay = last_n_samples.pop_back().unwrap();
-                }
-                integral = integral + proportional * dt - int_decay;
+                integral = integral + proportional * dt;
+                integral = integral * config.integral_decay_time;
                 let derivative = (last_proportional - proportional) / dt;
                 last_proportional = proportional;
 
-                let mid = 1200.0;
+
                 let range = 1.0;
 
                 let u: GyroSensorData = proportional * kp + integral * ki + derivative * kd;
                 let power = u * range;
 
-                let debug_data = debug::DebugInfo{
+                let debug_data = debug_server::DebugInfo{
                     time: start.to(time::PreciseTime::now()).num_microseconds().unwrap(),
                     power: power.x,
                     p: proportional.x * kp,
@@ -197,8 +174,8 @@ impl MotorManager {
                 };
 
                 debug_pipe.send(debug_data);
-//                writeln!(&mut std::io::stderr(), "{},{},{},{},{}", , u.x, (proportional * kp).x, (integral * ki).x, (derivative * kd).x);
 
+                let mid = 1200.0;
                 let x_1 = mid - power.x;
                 let x_2 = mid - power.x;
                 let x_3 = mid + power.x;
@@ -210,8 +187,6 @@ impl MotorManager {
                     set_power(MOTOR_3, x_3 as u32);
                     set_power(MOTOR_4, x_4 as u32);
                 }
-
-//                println!("a: {}", format!("{:.2}", current_orientation.x));
             }
         });
     }
