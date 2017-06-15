@@ -18,7 +18,7 @@ use std::collections::HashMap;
 use time::{Duration, PreciseTime};
 
 use protos::generated::position::Position;
-use protobuf::core::{Message,MessageStatic, parse_from_bytes};
+use protobuf::core::{Message, MessageStatic, parse_from_bytes};
 use protobuf;
 
 //#[cfg(not(rpi))]
@@ -37,17 +37,20 @@ pub struct Peer {
 impl Peer {
     pub fn new() -> Peer {
         let (tx, rx) = channel();
-        Peer { sock: UdpSocket::bind(LOCAL_ADDR).unwrap(), position_sub: tx }
+        Peer {
+            sock: UdpSocket::bind(LOCAL_ADDR).unwrap(),
+            position_sub: tx,
+        }
     }
 
     pub fn connect_to_server(&self) {
         println!("Connecting to server");
         //        self.sock.connect(SERVER_ADDR).unwrap();
-        let msg : String = String::from("drone");
+        let msg: String = String::from("drone");
         self.sock.send_to(msg.as_bytes(), SERVER_ADDR).unwrap();
         println!("Sent message to server. Awaiting response.");
 
-        let mut response = String::from("                                                             ");
+        let mut response = String::from("                                                             ",);
         unsafe { self.sock.recv(response.as_mut_vec().borrow_mut()).unwrap() };
         println!("Got response: {}", response.trim());
 
@@ -62,7 +65,9 @@ impl Peer {
         let controller_port: u16 = response.trim().to_string().parse::<u16>().unwrap();
 
         println!("Connecting to {:?}:{}.", controller_ip, controller_port);
-        self.sock.connect(SocketAddrV4::new(controller_ip, controller_port)).unwrap();
+        self.sock
+            .connect(SocketAddrV4::new(controller_ip, controller_port))
+            .unwrap();
         sleep(std::time::Duration::from_secs(1));
         println!("Here");
 
@@ -79,7 +84,7 @@ impl Peer {
                         println!("Successfully connected to controller.");
                         break 'p2ploop;
                     }
-                },
+                }
                 Err(e) => {}
             }
             thread::sleep(Duration::seconds(1).to_std().unwrap());
@@ -112,22 +117,20 @@ impl Peer {
     pub fn start_connection_loop(&self) {
         let socket = self.sock.try_clone().unwrap();
         let pos_sub = self.position_sub.clone();
-        thread::spawn(move || {
-            loop {
-                let mut bytes: Vec<u8> = Vec::new();
-                socket.recv(&mut bytes);
-                if bytes.capacity() <= 0 {
-                    continue;
-                }
+        thread::spawn(move || loop {
+                          let mut bytes: Vec<u8> = Vec::new();
+                          socket.recv(&mut bytes);
+                          if bytes.capacity() <= 0 {
+                              continue;
+                          }
 
-                match bytes[0] {
-                    POSITION_ID => {
-                        let pos: Position =  parse_from_bytes(bytes.as_ref()).unwrap();
-                        pos_sub.send(pos);
-                    }
-                    _ => {}
-                }
-            }
-        });
+                          match bytes[0] {
+                              POSITION_ID => {
+                                  let pos: Position = parse_from_bytes(bytes.as_ref()).unwrap();
+                                  pos_sub.send(pos);
+                              }
+                              _ => {}
+                          }
+                      });
     }
 }

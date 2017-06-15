@@ -11,8 +11,8 @@ use std::time::Duration;
 use std::f32;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
-const MAX_VALUE : u32 = 1400;
-const MIN_VALUE : u32 = 1100;
+const MAX_VALUE: u32 = 1400;
+const MIN_VALUE: u32 = 1100;
 
 use sensors::GyroSensorData;
 use sensors::start_sensors;
@@ -39,7 +39,7 @@ pub fn terminate_all_motors() {
 }
 
 pub struct MotorManager {
-    pub motors: Vec<u32>
+    pub motors: Vec<u32>,
 }
 
 impl MotorManager {
@@ -94,10 +94,12 @@ impl MotorManager {
     pub fn start_pid_loop(&self, config: Config) {
         let debug_pipe = debug_server::init_debug_port();
         let sensor_input: Receiver<GyroSensorData>;
-//        let mut controller_input = peer.subscribe_position();
+        //        let mut controller_input = peer.subscribe_position();
         let sensor_poll_time = config.sensor_poll_time;
         match start_sensors(sensor_poll_time) {
-            Ok(recv) => { sensor_input = recv; },
+            Ok(recv) => {
+                sensor_input = recv;
+            }
             Err(e) => {
                 println!("Couldn't start sensors. Stopping. {:?}", e);
                 return;
@@ -111,11 +113,27 @@ impl MotorManager {
 
         //PID thread
         thread::spawn(move || {
-            let mut desired_orientation = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
+            let mut desired_orientation = GyroSensorData {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            };
 
-            let mut integral = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
-            let mut last_proportional = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
-            let mut int_decay: GyroSensorData = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
+            let mut integral = GyroSensorData {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            };
+            let mut last_proportional = GyroSensorData {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            };
+            let mut int_decay: GyroSensorData = GyroSensorData {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            };
 
             let mut last_sample_time = time::PreciseTime::now();
             let start = time::PreciseTime::now();
@@ -132,10 +150,12 @@ impl MotorManager {
                 let mut current_orientation = sensor_input.recv().unwrap();
                 loop {
                     match sensor_input.try_recv() {
-                        Ok(orientation) => { current_orientation = orientation; },
+                        Ok(orientation) => {
+                            current_orientation = orientation;
+                        }
                         Err(_) => {
                             break;
-                        },
+                        }
                     }
                 }
 
@@ -165,12 +185,15 @@ impl MotorManager {
                 let u: GyroSensorData = proportional * kp + integral * ki + derivative * kd;
                 let power = u * range;
 
-                let debug_data = debug_server::DebugInfo{
-                    time: start.to(time::PreciseTime::now()).num_microseconds().unwrap(),
+                let debug_data = debug_server::DebugInfo {
+                    time: start
+                        .to(time::PreciseTime::now())
+                        .num_microseconds()
+                        .unwrap(),
                     power: power.x,
                     p: proportional.x * kp,
                     i: integral.x * ki,
-                    d: derivative.x * kd
+                    d: derivative.x * kd,
                 };
 
                 debug_pipe.send(debug_data);
@@ -240,11 +263,11 @@ fn initialize_motor(gpio_pin: u32) -> u32 {
 
 fn arm(motor: u32) -> thread::JoinHandle<()> {
     thread::spawn(move || {
-        pwm(motor, 1000).unwrap();
-        sleep(Duration::from_secs(2));
+                      pwm(motor, 1000).unwrap();
+                      sleep(Duration::from_secs(2));
 
-        pwm(motor, 1100).unwrap();
-    })
+                      pwm(motor, 1100).unwrap();
+                  })
 }
 
 fn set_power(motor: u32, mut power: u32) {
@@ -260,5 +283,3 @@ fn set_power(motor: u32, mut power: u32) {
 fn stop(motor: u32) {
     write(motor, OFF).unwrap();
 }
-
-
