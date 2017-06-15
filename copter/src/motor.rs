@@ -91,10 +91,13 @@ impl MotorManager {
 
     //PID STUFF
 
-    pub fn start_pid_loop(&self, config: Config) {
+    pub fn start_pid_loop(&self, config: Config, peer: &mut Peer) {
         let debug_pipe = debug_server::init_debug_port();
+
+        let ci = peer.subscribe_input();
+        let controller_input = ci;
+
         let sensor_input: Receiver<GyroSensorData>;
-        //        let mut controller_input = peer.subscribe_position();
         let sensor_poll_time = config.sensor_poll_time;
         match start_sensors(sensor_poll_time) {
             Ok(recv) => {
@@ -113,6 +116,7 @@ impl MotorManager {
 
         //PID thread
         thread::spawn(move || {
+
             let mut desired_orientation = GyroSensorData {
                 x: 0.0,
                 y: 0.0,
@@ -146,7 +150,27 @@ impl MotorManager {
             let ki = config.ki;
             let kd = config.kd;
 
+            let integral_decay = 0.995;
             loop {
+                match controller_input.try_recv() {
+                    Ok(desired) => {
+                        desired_orientation.x = desired.get_orientation().x;
+                        desired_orientation.y = desired.get_orientation().y;
+
+                        'inner: loop {
+                            match controller_input.try_recv() {
+                                Ok(desired) => {
+                                    desired_orientation.x = desired.get_orientation().x;
+                                    desired_orientation.y = desired.get_orientation().y;
+                                },
+                                Err(_) => {
+                                    break 'inner;
+                                }
+                            }
+                        }
+                    },
+                    Err(_) => { }
+                }
                 let mut current_orientation = sensor_input.recv().unwrap();
                 loop {
                     match sensor_input.try_recv() {
@@ -175,7 +199,7 @@ impl MotorManager {
 
                 last_n_samples.push_front(proportional * dt);
                 integral = integral + proportional * dt;
-                integral = integral * config.integral_decay_time;
+                integral = integral * integral_decay;
                 let derivative = (last_proportional - proportional) / dt;
                 last_proportional = proportional;
 

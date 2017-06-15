@@ -6,5 +6,7 @@
   "motor_cutoff": 25.0,
   "sensor_poll_time": 50,
   "motors_on": false,
-  "integral_decay_time": 0.9
+  "integral_decay_time": 0.9,
+
+  "server_address": "10.0.0.28:7070"
 }

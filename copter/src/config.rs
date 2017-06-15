@@ -2,7 +2,7 @@ use std::vec::Vec;
 use std::fs::File;
 use std::io::prelude::*;
 use serde_json;
-
+use std::string::String;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
@@ -14,6 +14,7 @@ pub struct Config {
     pub sensor_poll_time: i64,
     pub motors_on: bool,
     pub integral_decay_time: f32,
+    pub server_address: String,
 }
 
 impl Config {

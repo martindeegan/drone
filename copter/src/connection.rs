@@ -15,9 +15,13 @@ use std::thread::sleep;
 use std::vec::Vec;
 use std::collections::HashMap;
 
+use config::Config;
+
 use time::{Duration, PreciseTime};
 
-use protos::generated::position::Position;
+use motor;
+
+use protos::generated::controller_input::ControllerInput;
 use protobuf::core::{Message, MessageStatic, parse_from_bytes};
 use protobuf;
 
@@ -27,11 +31,11 @@ use protobuf;
 const SERVER_ADDR: &str = "13.59.251.61:7070";
 const LOCAL_ADDR: &str = "0.0.0.0:27136";
 
-const POSITION_ID: u8 = 1;
+const INPUT_ID: u8 = 1;
 
 pub struct Peer {
     sock: UdpSocket,
-    position_sub: Sender<Position>,
+    input_sub: Sender<ControllerInput>,
 }
 
 impl Peer {
@@ -39,15 +43,16 @@ impl Peer {
         let (tx, rx) = channel();
         Peer {
             sock: UdpSocket::bind(LOCAL_ADDR).unwrap(),
-            position_sub: tx,
+            input_sub: tx,
         }
     }
 
     pub fn connect_to_server(&self) {
+        let config = Config::new();
+        let server_addr = config.server_address;
         println!("Connecting to server");
-        //        self.sock.connect(SERVER_ADDR).unwrap();
         let msg: String = String::from("drone");
-        self.sock.send_to(msg.as_bytes(), SERVER_ADDR).unwrap();
+        self.sock.send_to(msg.as_bytes(), server_addr).unwrap();
         println!("Sent message to server. Awaiting response.");
 
         let mut response = String::from("                                                             ",);
@@ -103,20 +108,15 @@ impl Peer {
 
     }
 
-    pub fn subscribe_position(&mut self) -> Receiver<Position> {
-        let (tx, rx): (Sender<Position>, Receiver<Position>) = channel();
-        self.position_sub = tx;
+    pub fn subscribe_input(&mut self) -> Receiver<ControllerInput> {
+        let (tx, rx): (Sender<ControllerInput>, Receiver<ControllerInput>) = channel();
+        self.input_sub = tx;
         rx
-    }
-
-    pub fn send_position(&self, object: Position) {
-        let bytes = object.write_to_bytes().unwrap();
-        self.sock.send(bytes.as_ref()).unwrap();
     }
 
     pub fn start_connection_loop(&self) {
         let socket = self.sock.try_clone().unwrap();
-        let pos_sub = self.position_sub.clone();
+        let input_subscriber = self.input_sub.clone();
         thread::spawn(move || loop {
                           let mut bytes: Vec<u8> = Vec::new();
                           socket.recv(&mut bytes);
@@ -124,11 +124,15 @@ impl Peer {
                               continue;
                           }
 
-                          match bytes[0] {
-                              POSITION_ID => {
-                                  let pos: Position = parse_from_bytes(bytes.as_ref()).unwrap();
-                                  pos_sub.send(pos);
-                              }
+                          match bytes[1] {
+                              INPUT_ID => {
+                                  let input: ControllerInput = parse_from_bytes(bytes.as_ref()).unwrap();
+                                  input_subscriber.send(input);
+                              },
+                              2 => {
+                                  motor::terminate_all_motors();
+                                  std::process::exit(0);
+                              },
                               _ => {}
                           }
                       });

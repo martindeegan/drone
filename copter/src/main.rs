@@ -39,10 +39,16 @@ fn main() {
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
 
+    let mut peer = Peer::new();
+
     if config.motors_on {
         manager.arm();
     }
-    manager.start_pid_loop(config);
+    manager.start_pid_loop(config, &mut peer);
+
+
+    peer.connect_to_server();
+    peer.start_connection_loop();
 
     wait();
 }
