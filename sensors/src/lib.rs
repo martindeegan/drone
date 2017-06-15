@@ -1,10 +1,13 @@
+#![allow(dead_code)]
+
 extern crate i2cdev;
 
 extern crate time;
 extern crate byteorder;
 
 use std::thread;
-use std::time::{Duration,Instant};
+use std::time::Duration;
+use time::PreciseTime;
 
 use i2cdev::core::*;
 use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
@@ -216,12 +219,11 @@ use std::error::Error;
 // Maybe go lower?
 const offset_growth : f32 = 0.001;
 
-const KP: f32 = 0.032029;
-const KI: f32 = 0.244381;
-const KD: f32 = 0.000529;
 
-pub fn start() -> Result<Receiver<GyroSensorData>, LinuxI2CError> {
-    let sample_time = std::time::Duration::from_millis(30);
+pub fn start_sensors(sensor_poll_time: i64) -> Result<Receiver<GyroSensorData>, LinuxI2CError> {
+
+    println!("Sensor poll time: {}", sensor_poll_time);
+    let sample_time = time::Duration::milliseconds(sensor_poll_time);
 
     let (transmitter, receiver): (Sender<GyroSensorData>, Receiver<GyroSensorData>) = channel();
     match LinuxI2CDevice::new("/dev/i2c-1", GYRO_ADDRESS) {
@@ -234,12 +236,12 @@ pub fn start() -> Result<Receiver<GyroSensorData>, LinuxI2CError> {
 
                         // Assume we start on a relatively flat surface.
                         let mut sum = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
-                        let mut last_sample_time = Instant::now();
+                        let mut last_sample_time = PreciseTime::now();
                         // We add an offset to account for the gyro's tendency to randomly increase.
                         let mut gyro_offset = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
                         loop {
-                            let dt: f32 = Instant::now().duration_since(last_sample_time).subsec_nanos() as f32 / 1000000000.0;
-                            last_sample_time = Instant::now();
+                            let curr_time = PreciseTime::now();
+                            let dt: f32 = last_sample_time.to(curr_time).num_microseconds().unwrap() as f32 / 1000000.0;
                             // Returns angular speed with respect to time. degrees/dt
                             let degrees_per_second = sampleGyro(&mut gyroscope) - gyro_offset;
                             let change_in_degrees = degrees_per_second * dt;
@@ -255,51 +257,19 @@ pub fn start() -> Result<Receiver<GyroSensorData>, LinuxI2CError> {
                             let angle_acc_y = (linear_acceleration.y as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
 
                             // Comment this out to just try the gyro readings.
-                            sum = sum  * 0.98+ GyroSensorData {x: angle_acc_x, y: angle_acc_y, z: sum.z} * 0.02;
+                            sum = sum  * 0.98 + GyroSensorData {x: angle_acc_x, y: angle_acc_y, z: sum.z} * 0.02;
 
                             transmitter.send(sum).unwrap();// Should handle error here in the future.
 
                             // Sleep until the sample time has passed +- 10 millis.
-                            while !(Instant::now().duration_since(last_sample_time) < sample_time) {
-                                thread::sleep(Duration::from_millis(10));
+                            while (last_sample_time.to(PreciseTime::now()) < sample_time) {
+                                thread::sleep(Duration::from_millis(1));
                             }
+                            last_sample_time = curr_time;
                         }
                     });
-                    // PID loop.
-                    let (error_transmiter, error_receiver): (Sender<GyroSensorData>, Receiver<GyroSensorData>) = channel();
-                    std::thread::spawn(move || {
-                        let PID_sample_time = std::time::Duration::from_millis(50);
-                        let mut last_sample_time = Instant::now();
-                        let mut last_proportional: GyroSensorData = GyroSensorData{ x: 0.0, y: 0.0, z: 0.0};
-                        let mut Ki = GyroSensorData{ x: 0.0, y: 0.0, z: 0.0};
-                        loop {
-                            let dt: f32 = Instant::now().duration_since(last_sample_time).subsec_nanos() as f32 / 1000000000.0;
-                            last_sample_time = Instant::now();
-                            // Sync wait for at least one update from the sensors.
-                            let mut proportional = receiver.recv().unwrap();
 
-                            // Get most recent message from the channel.
-                            loop {
-                                match receiver.try_recv() {
-                                    Ok(msg) => {proportional = msg;},
-                                    Err(_) => break
-                                }
-                            }
-
-                            let Kd = (proportional - last_proportional) / dt;
-                            last_proportional = proportional;
-                            Ki = Ki + (proportional * dt);
-
-                            let err = proportional * KP + Kd * KD +  Ki * KI;
-
-                            error_transmiter.send(err);
-                            // Sleep until the sample time has passed +- 10 millis.
-                            while !(Instant::now().duration_since(last_sample_time) < PID_sample_time) {
-                                thread::sleep(Duration::from_millis(20));
-                            }
-                        }
-                    });
-                    return Ok(error_receiver);
+                    return Ok(receiver);
                 },
                 Err(e) => {
                     println!("Failed to connect to accelerometer. {}", e);

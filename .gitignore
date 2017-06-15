@@ -1,6 +1,11 @@
 .idea/
 target/
 src/proto
+<<<<<<< HEAD
 third_party/
 .DS_Store
 
+=======
+Cargo.lock
+.DS_Store
+>>>>>>> martinpid

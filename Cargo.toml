@@ -2,11 +2,25 @@
 name = "drone"
 version = "0.1.0"
 authors = ["Thomas Deegan <tadeegan@gmail.com>", "Martin Deegan <mddeegan@gmail.com>"]
+build = "build.rs"
 
 [dependencies]
 rust-pigpio = "0.2.0"
+protobuf = "1.2.2"
+time = "0.1"
 sensors = {path = "./sensors", version = "0.1.0"}
+serde_json = "1.0.2"
+serde = "1.0.8"
+serde_derive = "1.0.8"
+openssl = "0.9.13"
+websocket = "0.20.1"
+
+[build-dependencies]
+protoc-rust = { path = "third_party/rust-protobuf/protoc-rust" }
 
 [[bin]]
 name = "drone"
 path = "src/main.rs"
+
+[features]
+rpi = []
