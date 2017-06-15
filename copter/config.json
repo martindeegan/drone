@@ -8,5 +8,6 @@
   "motors_on": false,
   "integral_decay_time": 0.9,
   "server_address": "10.0.0.28:7070",
-  "hover_power": 1200
+  "hover_power": 1200,
+  "debug_websocket_port": 27070
 }
