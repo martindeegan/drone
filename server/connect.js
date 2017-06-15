@@ -11,8 +11,9 @@ function sendEndpoints() {
   let controllerEP = controllerAddr + ':' + controllerPort.toString();
   let droneEP = droneAddr + ':' + dronePort.toString();
 
-  socket.send(controllerEP, dronePort, droneAddr);
+  socket.send(controllerAddr, dronePort, droneAddr);
   socket.send(droneEP, controllerPort, controllerAddr);
+  socket.send(controllerPort, dronePort, droneAddr);
 
   controllerAddr = null;
   controllerPort = null;
@@ -35,7 +36,7 @@ socket.on('message', (msg, rinfo) => {
       //Drone ping
       droneAddr = rinfo.address;
       dronePort = rinfo.port;
-
+ 
       socket.send("Pong", dronePort, droneAddr);
     }
   }
