@@ -1,9 +1,9 @@
-syntax = "proto2";
+syntax = "proto3";
 
 message Position {
-    required int32 id = 1;
-    required int32 time = 2;
-    required int32 x = 3;
-    required int32 y = 4;
-    required int32 z = 5;
+    int32 id = 1;
+    int32 time = 2;
+    int32 x = 3;
+    int32 y = 4;
+    int32 z = 5;
 }

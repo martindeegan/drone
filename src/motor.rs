@@ -5,14 +5,14 @@ use std;
 use std::thread;
 use std::thread::sleep;
 use std::thread::JoinHandle;
+use std::collections::VecDeque;
 use std::time::Duration;
-
-const MAX_VALUE : u32 = 1400;
-const MIN_VALUE : u32 = 1100;
-
 use std::f32;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::error::Error;
+
+const MAX_VALUE : u32 = 1400;
+const MIN_VALUE : u32 = 1100;
 
 use sensors::GyroSensorData;
 use sensors::start_sensors;
@@ -26,6 +26,10 @@ use std::io::Write;
 use connection::Peer;
 
 use config::Config;
+
+use debug;
+
+
 
 const MAX_ERROR: f32 = 200.0;
 const MAX_PID_POWER: f32 = 1400.0;
@@ -102,9 +106,11 @@ impl MotorManager {
     //PID STUFF
 
     pub fn start_pid_loop(&self, config: Config) {
+        let mut debug_pipe = debug::init_debug_port();
         let mut sensor_input: Receiver<GyroSensorData>;
 //        let mut controller_input = peer.subscribe_position();
-        match start_sensors() {
+        let sensor_poll_time = config.sensor_poll_time;
+        match start_sensors(sensor_poll_time) {
             Ok(recv) => { sensor_input = recv; },
             Err(e) => {
                 println!("Couldn't start sensors. Stopping. {:?}", e);
@@ -121,15 +127,21 @@ impl MotorManager {
         thread::spawn(move || {
             let mut desired_orientation = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
 
-
-            let mut last_sample_time = time::PreciseTime::now();
-
             let mut integral = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
             let mut last_proportional = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
+            let mut int_decay: GyroSensorData = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
 
-            let now = time::PreciseTime::now();
+            let mut last_sample_time = time::PreciseTime::now();
+            let start = time::PreciseTime::now();
+
+            let mut last_n_samples: VecDeque<GyroSensorData> = VecDeque::new();
 
             writeln!(&mut std::io::stderr(), "time,power,p,i,d");
+
+            let kp = config.kp;
+            let ki = config.ki;
+            let kd = config.kd;
+
             loop {
                 //                match controller_input.try_recv() {
                 //                    Ok(orientation) => { desired_orientation = orientation; },
@@ -163,20 +175,44 @@ impl MotorManager {
 
                 let proportional = (desired_orientation - current_orientation);
 
-                integral = integral + proportional * dt;
-                integral = integral * 0.998;
-
-                let derivative = (proportional - last_proportional) / dt;
+                last_n_samples.push_front(proportional * dt);
+                if last_n_samples.capacity() > (config.integral_decay_time * 1000000.0) as usize / sensor_poll_time as usize {
+                    int_decay = last_n_samples.pop_back().unwrap();
+                }
+                integral = integral + proportional * dt - int_decay;
+                let derivative = (last_proportional - proportional) / dt;
                 last_proportional = proportional;
 
-                let (m1, m2, m3, m4) = calculate_corrections(&config, proportional, integral, derivative, &now);
+                let mid = 1200.0;
+                let range = 1.0;
 
-//                set_power(MOTOR_1, m1);
-//                set_power(MOTOR_2, m2);
-//                set_power(MOTOR_3, m3);
-//                set_power(MOTOR_4, m4);
+                let u: GyroSensorData = proportional * kp + integral * ki + derivative * kd;
+                let power = u * range;
 
-                println!("a: {}", format!("{:.2}", current_orientation.x));
+                let debug_data = debug::DebugInfo{
+                    time: start.to(time::PreciseTime::now()).num_microseconds().unwrap(),
+                    power: power.x,
+                    p: proportional.x * kp,
+                    i: integral.x * ki,
+                    d: derivative.x * kd
+                };
+
+                debug_pipe.send(debug_data);
+//                writeln!(&mut std::io::stderr(), "{},{},{},{},{}", , u.x, (proportional * kp).x, (integral * ki).x, (derivative * kd).x);
+
+                let x_1 = mid - power.x;
+                let x_2 = mid - power.x;
+                let x_3 = mid + power.x;
+                let x_4 = mid + power.x;
+
+                if config.motors_on {
+                    set_power(MOTOR_1, x_1 as u32);
+                    set_power(MOTOR_2, x_2 as u32);
+                    set_power(MOTOR_3, x_3 as u32);
+                    set_power(MOTOR_4, x_4 as u32);
+                }
+
+//                println!("a: {}", format!("{:.2}", current_orientation.x));
             }
         });
     }
@@ -192,29 +228,6 @@ const MIN_RANGE: f32 = 100.0;
 
 const MAX_MID_ACCEL: f32 = 10.0;
 const MAX_MIN_DECCEL: f32 = -10.0;
-
-fn calculate_corrections(config: &Config, prop: GyroSensorData, integral: GyroSensorData, der: GyroSensorData, time: &time::PreciseTime) -> (u32, u32, u32, u32) {
-    let mid = 1200.0;
-    let range = 150.0;
-
-    let u: GyroSensorData = prop * config.kp + integral * config.ki + der * config.kd;
-    let power = u * range;
-
-    println!("prop.x (deg): {}", prop.x);
-    println!("power.x: {}", power.x);
-
-    writeln!(&mut std::io::stderr(), "{},{},{},{},{}", time.to(time::PreciseTime::now()).num_microseconds().unwrap(), u.x, (prop * config.kp).x, (integral * config.ki).x, (der * config.kd).x);
-
-    let x_1 = mid - power.x;
-    let x_2 = mid - power.x;
-    let x_3 = mid + power.x;
-    let x_4 = mid + power.x;
-
-    (x_1 as u32,
-     x_2 as u32,
-     x_3 as u32,
-     x_4 as u32)
-}
 
 fn calculate_error(current: GyroSensorData, desired: GyroSensorData) -> f32 {
     let diff_x = desired.x - current.x;

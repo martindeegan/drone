@@ -1,7 +1,11 @@
 {
-  "kp": 0.005,
-  "ki": 0.0,
-  "kd": 0.043,
+  "kp": 1.2,
+  "ki": 0.001,
+  "kd": 70,
   "motors": [19, 20, 21, 26],
-  "motor_cutoff": 35.0
+  "motor_cutoff": 50.0,
+  "sensor_poll_time": 10,
+  "motors_on": false,
+  "integral_decay_time": 1.0
+
 }

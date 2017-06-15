@@ -13,35 +13,42 @@ var chart = new CanvasJS.Chart("chartContainer", {
     text: "PID + power"
   },
   data: [
+//  {
+//    type: "line",
+//    dataPoints: power_total,
+//    color: "#F00",
+//  },
   {
     type: "line",
-    dataPoints: power_total,
+    dataPoints: p_data,
+    color: "#00F",
   },
-  {
-    type: "line",
-    dataPoints: p_data
-  },
-  {
-    type: "line",
-    dataPoints: i_data
-  },
+//  {
+//    type: "line",
+//    dataPoints: i_data
+//  },
   {
     type: "line",
     dataPoints: d_data,
-    // color: "#100"
+    color: "#0F0",
   }]
 });
 
 
 var counter = 0;
+var total = 0;
 function addData(t, total, p, i, d) {
+  total++;
+  if (total < 3) {
+    return
+  }
   p_data.unshift({
     x: t,
     y: p,
   });
   power_total.unshift({
     x: t,
-    y: p,
+    y: total,
   });
   i_data.unshift({
     x: t,
@@ -55,6 +62,7 @@ function addData(t, total, p, i, d) {
   truncate(i_data);
   truncate(d_data);
   truncate(power_total);
+
   if (counter == 5) {
     counter = 0;
     chart.render();
@@ -77,5 +85,5 @@ var socket = new WebSocket("ws://10.0.0.213:27070", "rust-websocket");
 socket.onmessage = function (event) {
   var components = event.data.split(",");
   // console.log("got data: "?+ components);
-  addData(parseInt(components[0]), parseFloat(components[2]), parseFloat(components[3]), parseFloat(components[4]))
+  addData(parseInt(components[0]), parseFloat(components[1]), parseFloat(components[2]), parseFloat(components[3]), parseFloat(components[4]))
 };

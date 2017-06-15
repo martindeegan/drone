@@ -14,7 +14,10 @@ pub struct Config {
     pub ki : f32,
     pub kd : f32,
     pub motors: Vec<u32>,
-    pub motor_cutoff: f32
+    pub motor_cutoff: f32,
+    pub sensor_poll_time: i64,
+    pub motors_on: bool,
+    pub integral_decay_time: f32
 }
 
 impl Config {

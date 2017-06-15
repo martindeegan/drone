@@ -1,14 +1,15 @@
-extern crate rust_pigpio;
-extern crate protobuf;
 extern crate time;
+
+extern crate rust_pigpio;
 extern crate sensors;
-extern crate simple_signal;
 
 extern crate serde;
 extern crate serde_json;
-
 #[macro_use]
 extern crate serde_derive;
+
+extern crate websocket;
+extern crate protobuf;
 
 use std::io::stdin;
 use std::string::String;
@@ -19,6 +20,8 @@ use motor::MotorManager;
 mod proto {
     pub mod position;
 }
+
+mod debug;
 
 use protobuf::Message;
 use proto::position::Position;
@@ -33,12 +36,6 @@ fn main() {
 
     let config = Config::new();
 
-    simple_signal::set_handler(&[simple_signal::Signal::Int], |signals| {
-        println!("Ctrl C!");
-        motor::TERMINATE_ALL_MOTORS();
-        std::process::exit(0);
-    });
-
 //    let mut peer = Peer::new();
     let mut manager = MotorManager::new();
     manager.new_motor(config.motors[0]);
@@ -50,7 +47,9 @@ fn main() {
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
 
-//    manager.arm();
+    if config.motors_on {
+        manager.arm();
+    }
     manager.start_pid_loop(config);
 
     'input: loop {
