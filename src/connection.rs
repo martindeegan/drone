@@ -1,4 +1,3 @@
-
 use std::net::UdpSocket;
 use std::net::SocketAddrV4;
 use std::net::Ipv4Addr;
@@ -18,7 +17,7 @@ use std::collections::HashMap;
 
 use time::{Duration, PreciseTime};
 
-use proto::position::Position;
+use protos::generated::position::Position;
 use protobuf::core::{Message,MessageStatic, parse_from_bytes};
 use protobuf;
 

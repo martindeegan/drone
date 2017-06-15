@@ -2,5 +2,10 @@
 name = "protos"
 version = "0.1.0"
 authors = ["martindeegan <mddeegan@gmail.com>"]
+build = "build.rs"
 
 [dependencies]
+protobuf = "1.2.2"
+
+[build-dependencies]
+protoc-rust = { path = "../third_party/rust-protobuf/protoc-rust" }

@@ -8,23 +8,15 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 
-extern crate websocket;
+extern crate debug_server;
 extern crate protobuf;
+extern crate protos;
 
 use std::io::stdin;
 use std::string::String;
 
 mod motor;
 use motor::MotorManager;
-
-mod proto {
-    pub mod position;
-}
-
-mod debug;
-
-use protobuf::Message;
-use proto::position::Position;
 
 mod connection;
 use connection::Peer;
@@ -64,7 +56,7 @@ fn wait() {
     match input {
         _ => {
             println!("unrecognized input...");
-            motor::TERMINATE_ALL_MOTORS();
+            motor::terminate_all_motors();
             std::process::exit(0);
         }
     }

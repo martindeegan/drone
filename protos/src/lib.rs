@@ -1,3 +1,7 @@
-mod controller_input;
-mod position;
-mod vector3;
+extern crate protobuf;
+
+pub mod generated {
+    pub mod controller_input;
+    pub mod position;
+    pub mod vector3;
+}
