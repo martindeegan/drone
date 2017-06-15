@@ -84,7 +84,11 @@ namespace drone_controller
             Console.WriteLine("Got something from: " + ep);
             Console.WriteLine(Encoding.UTF8.GetString(droneHolePunch));
 
-            return true;
+            client.Connect(drone_endpoint);
+
+			msg = Encoding.UTF8.GetBytes("control station");
+            client.Send(msg, msg.Length);
+			return true;
         }
 
         public void stop() 
