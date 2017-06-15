@@ -1,0 +1,6 @@
+[package]
+name = "protos"
+version = "0.1.0"
+authors = ["martindeegan <mddeegan@gmail.com>"]
+
+[dependencies]

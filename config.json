@@ -7,5 +7,4 @@
   "sensor_poll_time": 10,
   "motors_on": false,
   "integral_decay_time": 1.0
-
 }
