@@ -1,4 +1,5 @@
-use std;
+extern crate websocket;
+
 use std::thread;
 use std::sync::mpsc::{Sender, Receiver, channel};
 use std::string::String;
