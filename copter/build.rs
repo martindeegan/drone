@@ -1,5 +1,4 @@
 use std::env;
-use std::fs;
 
 fn main() {
     match env::var("$RUST_PI_COMPILATION") {

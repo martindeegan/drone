@@ -19,21 +19,19 @@ mod motor;
 use motor::MotorManager;
 
 mod connection;
-use connection::Peer;
 
 mod config;
 use config::Config;
 
 fn main() {
     let config = Config::new();
-
+    let debug_pipe = debug_server::init_debug_port();
     //    let mut peer = Peer::new();
     let mut manager = MotorManager::new();
     manager.new_motor(config.motors[0]);
     manager.new_motor(config.motors[1]);
     manager.new_motor(config.motors[2]);
     manager.new_motor(config.motors[3]);
-
 
     println!("Press enter to self control.");
     let mut input = String::new();
@@ -44,17 +42,11 @@ fn main() {
     if config.motors_on {
         manager.arm();
     }
-    manager.start_pid_loop(config, &mut peer);
-
+    manager.start_pid_loop(config, &mut peer, debug_pipe.clone());
 
     peer.connect_to_server();
     peer.start_connection_loop();
 
-    wait();
-}
-
-
-fn wait() {
     println!("Press enter to self stop.");
 
     let mut input = String::new();
@@ -62,7 +54,7 @@ fn wait() {
     match input {
         _ => {
             println!("unrecognized input...");
-            motor::terminate_all_motors();
+            motor::terminate_all_motors(debug_pipe);
             std::process::exit(0);
         }
     }

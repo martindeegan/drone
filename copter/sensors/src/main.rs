@@ -10,7 +10,6 @@ pub fn main() {
                 break;
             }
         }
-
     }
 
 }

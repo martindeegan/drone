@@ -15,6 +15,7 @@ pub struct Config {
     pub motors_on: bool,
     pub integral_decay_time: f32,
     pub server_address: String,
+    pub hover_power: u32,
 }
 
 impl Config {
