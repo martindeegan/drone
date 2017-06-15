@@ -29,8 +29,6 @@ use config::Config;
 
 use debug;
 
-
-
 const MAX_ERROR: f32 = 200.0;
 const MAX_PID_POWER: f32 = 1400.0;
 const MIN_PID_POWER: f32 = 1200.0;
