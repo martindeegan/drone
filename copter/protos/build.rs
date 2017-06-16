@@ -5,8 +5,8 @@ use std::fs;
 fn main() {
 
 
-//    let CARGO_MANIFEST_DIR = concat!(env!("CARGO_MANIFEST_DIR"));
-//    println!("manifest: {}", CARGO_MANIFEST_DIR);
+    let CARGO_MANIFEST_DIR = concat!(env!("CARGO_MANIFEST_DIR"), "/protos");
+    println!("manifest: {}", CARGO_MANIFEST_DIR);
 
     fs::create_dir("src/generated");
 
@@ -19,5 +19,7 @@ fn main() {
             "protos/controller_input.proto"
         ]
     }).expect("protoc");
+
+    println!("cargo:rerun-if-changed={}", CARGO_MANIFEST_DIR)
 }
 
