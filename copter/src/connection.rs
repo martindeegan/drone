@@ -25,6 +25,8 @@ use protos::generated::controller_input::ControllerInput;
 use protobuf::core::{Message, MessageStatic, parse_from_bytes};
 use protobuf;
 
+use debug_server;
+
 //#[cfg(not(rpi))]
 //const SERVER_ADDR: &str = "127.0.0.1:7070";
 //#[cfg(rpi)]
@@ -61,8 +63,8 @@ impl Peer {
 
         response = String::from("                                                             ");
         unsafe { self.sock.recv(response.as_mut_vec().borrow_mut()).unwrap() };
+        println!("Got controller address: {}", response);
         let controller_ip = Ipv4Addr::from_str(response.trim()).unwrap();
-        println!("Got controller address: {}", response.trim());
 
         response = String::from("                                                             ");
         unsafe { self.sock.recv(response.as_mut_vec().borrow_mut()).unwrap() };
@@ -76,23 +78,25 @@ impl Peer {
         sleep(std::time::Duration::from_secs(1));
         println!("Here");
 
+        let msg: String = String::from_str("Hello").unwrap();
+        self.sock.send(msg.as_bytes());
+
         'p2ploop: loop {
-            println!(".");
+            println!(".asdf");
 
-            let msg: String = String::from_str("Hello").unwrap();
-            self.sock.send(msg.as_bytes());
 
-            let mut response: Vec<u8> = Vec::new();
-            match self.sock.recv(response.as_mut()) {
+            let mut buf = [0; 10];
+            match self.sock.recv(&mut buf) {
                 Ok(size) => {
+                    println!("Successfully connected to controller. {:?}", buf);
                     if size > 0 {
-                        println!("Successfully connected to controller.");
                         break 'p2ploop;
                     }
                 }
-                Err(e) => {}
+                Err(e) => {
+                    println!("I feel terrible...");
+                }
             }
-            thread::sleep(Duration::seconds(1).to_std().unwrap());
         }
 
         for i in 0..5 {
@@ -100,9 +104,6 @@ impl Peer {
             self.sock.send(msg.as_bytes());
             thread::sleep(Duration::seconds(1).to_std().unwrap());
         }
-
-        let msg: String = String::from_str("Connected").unwrap();
-        self.sock.send(msg.as_bytes());
 
         println!("Successfully connected to controller.");
 
@@ -114,27 +115,36 @@ impl Peer {
         rx
     }
 
-    pub fn start_connection_loop(&self) {
+    pub fn start_connection_loop(&self, debug_pipe : Sender<debug_server::Signal>) {
         let socket = self.sock.try_clone().unwrap();
         let input_subscriber = self.input_sub.clone();
-        thread::spawn(move || loop {
-                          let mut bytes: Vec<u8> = Vec::new();
-                          socket.recv(&mut bytes);
-                          if bytes.capacity() <= 0 {
-                              continue;
-                          }
-
-                          match bytes[1] {
-                              INPUT_ID => {
-                                  let input: ControllerInput = parse_from_bytes(bytes.as_ref()).unwrap();
-                                  input_subscriber.send(input);
-                              },
-                              2 => {
-                                  motor::terminate_all_motors();
-                                  std::process::exit(0);
-                              },
-                              _ => {}
-                          }
-                      });
+        thread::spawn(move ||
+            loop {
+                let mut buf: [u8;1000] = [0; 1000];
+                match socket.recv(&mut buf) {
+                    Ok(size) => {
+                        if size > 0 {
+                            match buf[1] {
+                                INPUT_ID => {
+                                    match parse_from_bytes::<ControllerInput>(&buf[0 .. size]) {
+                                        Ok(input) => {
+                                            input_subscriber.send(input);
+                                        },
+                                        Err(a) => {
+                                            println!("Something bad: {}", a);
+                                        }
+                                    }
+                                },
+                                2 => {
+                                    motor::terminate_all_motors(debug_pipe);
+                                    std::process::exit(0);
+                                },
+                                _ => {}
+                            }
+                        }
+                    }
+                    _ => {continue;}
+                }
+            });
     }
 }

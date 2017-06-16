@@ -11,7 +11,7 @@ use std::time::Duration;
 use std::f32;
 use std::sync::mpsc::{Sender, Receiver, TryRecvError};
 
-const MAX_VALUE: u32 = 1400;
+const MAX_VALUE: u32 = 1600;
 const MIN_VALUE: u32 = 1100;
 
 use sensors::GyroSensorData;
@@ -141,26 +141,26 @@ impl MotorManager {
             let mut last_sample_time = time::PreciseTime::now();
             let start = time::PreciseTime::now();
 
-            let mut last_n_samples: VecDeque<GyroSensorData> = VecDeque::new();
-
             writeln!(&mut std::io::stderr(), "time,power,p,i,d");
 
             let kp = config.kp;
             let ki = config.ki;
             let kd = config.kd;
 
-            let integral_decay = 0.995;
+            let mut mid = config.hover_power as f32;
             loop {
+                let mut up_force = 0.0;
                 match controller_input.try_recv() {
                     Ok(desired) => {
                         desired_orientation.x = desired.get_orientation().x;
                         desired_orientation.y = desired.get_orientation().y;
-
+                        up_force = desired.get_vertical_velocity();
                         'inner: loop {
                             match controller_input.try_recv() {
                                 Ok(desired) => {
                                     desired_orientation.x = desired.get_orientation().x;
                                     desired_orientation.y = desired.get_orientation().y;
+                                    up_force = desired.get_vertical_velocity();
                                 },
                                 Err(_) => {
                                     break 'inner;
@@ -170,6 +170,8 @@ impl MotorManager {
                     },
                     Err(_) => { }
                 }
+
+                mid = mid + up_force;
                 let mut current_orientation = sensor_input.recv().unwrap();
                 loop {
                     match sensor_input.try_recv() {
@@ -194,11 +196,13 @@ impl MotorManager {
                     std::process::exit(0);
                 }
 
+
                 let proportional = (desired_orientation - current_orientation);
 
-                last_n_samples.push_front(proportional * dt);
+                let dynamic_ki: f32 = 1.0;
+
                 integral = integral + proportional * dt;
-                integral = integral * integral_decay;
+                integral = integral * dynamic_ki;
                 let derivative = (proportional - last_proportional) / dt;
                 last_proportional = proportional;
 
@@ -220,17 +224,26 @@ impl MotorManager {
 
                 debug_pipe.send(debug_server::Signal::Log(debug_data));
 
-                let mid = config.hover_power as f32;
                 let x_1 = mid - power.x;
                 let x_2 = mid - power.x;
                 let x_3 = mid + power.x;
                 let x_4 = mid + power.x;
 
+                let y_1 = mid + power.y;
+                let y_2 = mid - power.y;
+                let y_3 = mid - power.y;
+                let y_4 = mid + power.y;
+
+                let m_1 = (x_1 + y_1) / 2.0;
+                let m_2 = (x_2 + y_2) / 2.0;
+                let m_3 = (x_3 + y_3) / 2.0;
+                let m_4 = (x_4 + y_4) / 2.0;
+
                 if config.motors_on {
-                    set_power(MOTOR_1, x_1 as u32);
-                    set_power(MOTOR_2, x_2 as u32);
-                    set_power(MOTOR_3, x_3 as u32);
-                    set_power(MOTOR_4, x_4 as u32);
+                    set_power(MOTOR_1, m_1 as u32);
+                    set_power(MOTOR_2, m_2 as u32);
+                    set_power(MOTOR_3, m_3 as u32);
+                    set_power(MOTOR_4, m_4 as u32);
                 }
             }
         });

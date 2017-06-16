@@ -23,6 +23,8 @@ mod connection;
 mod config;
 use config::Config;
 
+use connection::Peer;
+
 fn main() {
     let config = Config::new();
     let debug_pipe = debug_server::init_debug_port(config.debug_websocket_port);
@@ -32,7 +34,6 @@ fn main() {
     manager.new_motor(config.motors[1]);
     manager.new_motor(config.motors[2]);
     manager.new_motor(config.motors[3]);
-
     println!("Press enter to self control.");
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
@@ -45,7 +46,7 @@ fn main() {
     manager.start_pid_loop(config, &mut peer, debug_pipe.clone());
 
     peer.connect_to_server();
-    peer.start_connection_loop();
+    peer.start_connection_loop(debug_pipe.clone());
 
     println!("Press enter to self stop.");
 
@@ -54,7 +55,7 @@ fn main() {
     match input {
         _ => {
             println!("unrecognized input...");
-            motor::terminate_all_motors(debug_pipe);
+            motor::terminate_all_motors(debug_pipe.clone());
             std::process::exit(0);
         }
     }
