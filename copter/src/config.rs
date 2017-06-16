@@ -16,6 +16,7 @@ pub struct Config {
     pub integral_decay_time: f32,
     pub server_address: String,
     pub hover_power: u32,
+    pub max_motor_speed: u32,
     pub debug_websocket_port: i32,
 }
 

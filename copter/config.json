@@ -1,13 +1,14 @@
 {
-  "kp": 1.0,
-  "ki": 0.00,
-  "kd": 0.0,
+  "kp": 2.0,
+  "ki": 0.20,
+  "kd": 2.0,
   "motors": [19, 20, 21, 26],
   "motor_cutoff": 32.0,
   "sensor_poll_time": 30,
   "motors_on": false,
-  "integral_decay_time": 0.9,
+  "integral_decay_time": 0.8,
   "server_address": "10.0.0.28:7070",
-  "hover_power": 1200,
+  "hover_power": 1300,
+  "max_motor_speed": 1600,
   "debug_websocket_port": 27070
 }
