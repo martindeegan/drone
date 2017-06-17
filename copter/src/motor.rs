@@ -64,6 +64,8 @@ impl MotorManager {
         println!("Stopped.");
     }
 
+
+
     pub fn arm(&self) {
         println!("Arming motors.");
 
@@ -81,9 +83,6 @@ impl MotorManager {
 
         println!("Starting motors.");
 
-        for motor in self.motors.clone() {
-            set_power(motor, MIN_VALUE);
-        }
     }
 
     pub fn new_motor(&mut self, gpio_pin: u32) {
@@ -276,32 +275,69 @@ impl std::ops::Drop for MotorManager {
 
 
 fn initialize_motor(gpio_pin: u32) -> u32 {
+    let config = Config::new();
+    let freq: u32 = ( 1000 / config.sensor_poll_time ) as u32;
+    let range: u32 = 1000000 / freq;
     set_mode(gpio_pin, OUTPUT).unwrap();
-    set_pwm_range(gpio_pin, 2000).unwrap();
-    set_pwm_frequency(gpio_pin, 500).unwrap();
+    set_pwm_range(gpio_pin, range).unwrap();
+    set_pwm_frequency(gpio_pin, freq).unwrap();
     gpio_pin
 }
 
-//pub fn calibrate(motor: MotorHandle) -> thread::JoinHandle<()> {
-//    thread::spawn(move || {
-//        servo(motor, 0).unwrap();
-//        sleep(Duration::from_secs(4));
-//        servo(motor, 2000).unwrap();
-//        sleep(Duration::from_secs(4));
-//        servo(motor, 1000).unwrap();
-//        sleep(Duration::from_secs(8));
-//        write(motor, OFF).unwrap();
-//        sleep(Duration::from_secs(8));
-//    })
-//}
+pub fn calibrate() {
+    initialize().unwrap();
+
+    for x in Config::new().motors {
+        initialize_motor(x);
+    }
+
+    sleep(Duration::from_secs(2));
+
+    let config = Config::new();
+    println!("Calibrating");
+    let mut handles: Vec<JoinHandle<()>> = Vec::new();
+
+    for motor in config.motors.clone() {
+        let handle = thread::spawn(move || {
+            pwm(motor, 0).unwrap();
+            sleep(Duration::from_secs(1));
+            pwm(motor, 2000).unwrap();
+            sleep(Duration::from_secs(6));
+            pwm(motor, 1000).unwrap();
+            sleep(Duration::from_secs(6));
+            write(motor, OFF).unwrap();
+            sleep(Duration::from_secs(3));
+        });
+
+        handles.push(handle);
+    }
+
+    for mut handle in handles {
+        handle.join();
+    }
+
+    println!("Motors calibrated");
+    println!("Shutting down");
+
+    for motor in config.motors.clone() {
+        stop(motor);
+    }
+
+    terminate();
+    thread::sleep(Duration::from_secs(2));
+
+
+}
 
 fn arm(motor: u32) -> thread::JoinHandle<()> {
     thread::spawn(move || {
-                      pwm(motor, 1000).unwrap();
-                      sleep(Duration::from_secs(2));
+        pwm(motor, 0).unwrap();
+        sleep(Duration::from_secs(2));
+        pwm(motor, 1000).unwrap();
+        sleep(Duration::from_secs(2));
 
-                      pwm(motor, 1100).unwrap();
-                  })
+        pwm(motor, 1300).unwrap();
+    })
 }
 
 fn set_power(motor: u32, mut power: u32) {

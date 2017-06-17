@@ -13,7 +13,7 @@ function sendEndpoints() {
 
   socket.send(controllerAddr, dronePort, droneAddr);
   socket.send(droneEP, controllerPort, controllerAddr);
-  socket.send(controllerPort, dronePort, droneAddr);
+  socket.send(controllerPort.toString(), dronePort, droneAddr);
 
   controllerAddr = null;
   controllerPort = null;

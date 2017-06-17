@@ -5,7 +5,7 @@
   "motors": [19, 20, 21, 26],
   "motor_cutoff": 32.0,
   "sensor_poll_time": 30,
-  "motors_on": false,
+  "motors_on": true,
   "integral_decay_time": 0.8,
   "server_address": "10.0.0.28:7070",
   "hover_power": 1300,

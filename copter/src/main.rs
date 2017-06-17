@@ -27,6 +27,13 @@ use connection::Peer;
 
 fn main() {
     let config = Config::new();
+
+//    motor::calibrate();
+    start();
+}
+
+fn start() {
+    let config = Config::new();
     let debug_pipe = debug_server::init_debug_port(config.debug_websocket_port);
     //    let mut peer = Peer::new();
     let mut manager = MotorManager::new();
@@ -44,7 +51,6 @@ fn main() {
         manager.arm();
     }
     manager.start_pid_loop(config, &mut peer, debug_pipe.clone());
-
     peer.connect_to_server();
     peer.start_connection_loop(debug_pipe.clone());
 
