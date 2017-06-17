@@ -6,6 +6,13 @@ use std::string::String;
 
 use websocket::Message;
 use websocket::sync::Server;
+use websocket::sync::Client;
+use websocket::stream::sync::TcpStream;
+use websocket::server::NoTlsAcceptor;
+
+
+use std::result::Result;
+
 
 #[derive(Debug)]
 pub struct DebugInfo {
@@ -21,38 +28,74 @@ pub enum Signal {
     Stop
 }
 
+const DEBUG_PROTOCOL: &str = "drone-debug";
+
+fn shutdown_port(client: &mut Client<TcpStream>) -> Result<(),()> {
+    match client.shutdown() {
+        Ok(()) => {
+            println!("Debug client successfully shutdown.");
+            Ok(())
+        },
+        Err(e) => {
+            println!("Error shutting down debug client: {:?}", e);
+            Err(())
+        }
+    }
+}
+
+fn start_port(server: &mut Server<NoTlsAcceptor>) -> Result<Client<TcpStream>,()> {
+    println!("Debug port waiting for a connection.");
+    'search: loop {
+        match server.accept() {
+            Ok(upgrade) => {
+                if !upgrade.protocols().contains(&String::from(DEBUG_PROTOCOL)) {
+                    continue 'search;
+                }
+                match upgrade.use_protocol(DEBUG_PROTOCOL).accept() {
+                    Ok(client) => {
+                        let ip = client.peer_addr().unwrap();
+                        println!("Debug connection from {}", ip);
+                        return Ok(client);
+                    },
+                    _ => { }
+                }
+            },
+            _ => { }
+        }
+    }
+}
+
 pub fn init_debug_port(port : i32) -> Sender<Signal> {
     let (tx, rx): (Sender<Signal>, Receiver<Signal>) = channel();
 
     thread::spawn(move || {
         let mut server = Server::bind(format!("0.0.0.0:{}", port)).unwrap();
+        let mut client: Client<TcpStream> = start_port(&mut server).unwrap();
 
-        println!("Debug port waiting for a connection");
-        match server.accept() {
-            Ok(upgrade) => {
-                let mut client = upgrade.use_protocol("rust-websocket").accept().unwrap();
-
-                let ip = client.peer_addr().unwrap();
-                println!("Debug connection from {}", ip);
-
-                loop {
-                    match rx.recv() {
-                        Ok(Signal::Log(debug_info)) => {
-                            let msg_str: String = format!("{},{},{},{},{}", debug_info.time, debug_info.power, debug_info.p, debug_info.i, debug_info.d);
-                            client.send_message(&Message::text(msg_str.as_ref()));
-                        },
-                        Ok(Signal::Stop) => {
-                            println!("Shutdown debug port.");
-                            client.shutdown();
-                            break;
+        //Debug loop
+        loop {
+            match rx.recv() {
+                Ok(Signal::Log(debug_info)) => {
+                    let msg_str: String = format!("{},{},{},{},{}", debug_info.time, debug_info.power, debug_info.p, debug_info.i, debug_info.d);
+                    match client.send_message(&Message::text(msg_str.as_ref())) {
+                        Ok(()) => {},
+                        _ => {
+                            match start_port(&mut server) {
+                                Ok(c) => {
+                                    client = c;
+                                },
+                                Err(()) => {}
+                            }
                         }
-                        _ => {}
                     }
+                },
+                Ok(Signal::Stop) => {
+                    println!("Shutdown debug port.");
+                    shutdown_port(&mut client).unwrap();
                 }
-
-            },
-            _ => { println!("Bad connection."); }
-        };
+                _ => {}
+            }
+        }
     });
     tx.clone()
 }

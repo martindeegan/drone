@@ -129,7 +129,7 @@ function checkData() {
 }
 
 function reconnect() {
-    var socket = new WebSocket("ws://10.0.0.213:27070", "rust-websocket");
+    var socket = new WebSocket("ws://10.0.0.213:27070", "drone-debug");
     socket.onerror = function() {
         setStatus("Connection closed... wating for connection.");
         setTimeout(reconnect, 500);
