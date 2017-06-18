@@ -32,7 +32,7 @@ pub struct MotorManager {
 }
 
 pub fn terminate_all_motors(debug_pipe : Sender<debug_server::Signal>) {
-    println!("TERMINATING MOTORS!");
+    println!("[Motors]: TERMINATING MOTORS!");
 
     debug_pipe.send(debug_server::Signal::Stop);
 
@@ -53,7 +53,7 @@ impl MotorManager {
 
     fn initialize(&self) {
         initialize().unwrap();
-        println!("Initialized Motor Manager!");
+        println!("[Motors]: Initialized Motor Manager!");
     }
 
     pub fn terminate(&mut self) {
@@ -61,13 +61,13 @@ impl MotorManager {
             stop(motor);
         }
         terminate();
-        println!("Stopped.");
+        println!("[Motors]: Stopped.");
     }
 
 
 
     pub fn arm(&self) {
-        println!("Arming motors.");
+        println!("[Motors]: Arming motors.");
 
         let mut handles: Vec<JoinHandle<()>> = Vec::new();
 
@@ -79,9 +79,9 @@ impl MotorManager {
             handle.join();
         }
 
-        println!("Motors armed.");
+        println!("[Motors]: Motors armed.");
 
-        println!("Starting motors.");
+        println!("[Motors]: Starting motors.");
 
     }
 
@@ -102,7 +102,7 @@ impl MotorManager {
                 sensor_input = recv;
             }
             Err(e) => {
-                println!("Couldn't start sensors. Stopping. {:?}", e);
+                println!("[Motors]: Couldn't start sensors. Stopping. {:?}", e);
                 return;
             }
         };
@@ -111,6 +111,10 @@ impl MotorManager {
         let MOTOR_2 = self.motors[1];
         let MOTOR_3 = self.motors[2];
         let MOTOR_4 = self.motors[3];
+
+        if config.motors_on {
+            self.arm();
+        }
 
         //PID thread
         thread::spawn(move || {
@@ -139,8 +143,6 @@ impl MotorManager {
 
             let mut last_sample_time = time::PreciseTime::now();
             let start = time::PreciseTime::now();
-
-            writeln!(&mut std::io::stderr(), "time,power,p,i,d");
 
             let kp = config.kp;
             let ki = config.ki;
@@ -190,7 +192,7 @@ impl MotorManager {
 
                 //Safety check
                 if current_orientation.x.abs() > config.motor_cutoff {
-                    println!("Tilted too far. {:?}", current_orientation);
+                    println!("[Motors]: Tilted too far. {:?}", current_orientation);
                     terminate_all_motors(debug_pipe);
                     std::process::exit(0);
                 }
@@ -228,10 +230,10 @@ impl MotorManager {
                 let x_3 = mid + power.x;
                 let x_4 = mid + power.x;
 
-                let y_1 = mid + power.y;
-                let y_2 = mid - power.y;
-                let y_3 = mid - power.y;
-                let y_4 = mid + power.y;
+                let y_1 = mid - power.y;
+                let y_2 = mid + power.y;
+                let y_3 = mid + power.y;
+                let y_4 = mid - power.y;
 
                 let m_1 = (x_1 + y_1) / 2.0;
                 let m_2 = (x_2 + y_2) / 2.0;
@@ -276,7 +278,10 @@ impl std::ops::Drop for MotorManager {
 
 fn initialize_motor(gpio_pin: u32) -> u32 {
     let config = Config::new();
-    let freq: u32 = ( 1000 / config.sensor_poll_time ) as u32;
+    let mut freq: u32 = ( 1000 / config.sensor_poll_time ) as u32;
+    if freq < 50 {
+        freq = 50;
+    }
     let range: u32 = 1000000 / freq;
     set_mode(gpio_pin, OUTPUT).unwrap();
     set_pwm_range(gpio_pin, range).unwrap();
@@ -294,17 +299,19 @@ pub fn calibrate() {
     sleep(Duration::from_secs(2));
 
     let config = Config::new();
-    println!("Calibrating");
+    println!("[Motors]: Calibrating");
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
 
     for motor in config.motors.clone() {
         let handle = thread::spawn(move || {
             pwm(motor, 0).unwrap();
-            sleep(Duration::from_secs(1));
+            sleep(Duration::from_secs(4));
+//            pwm(motor, 1500).unwrap();
+//            sleep(Duration::from_secs(1));
             pwm(motor, 2000).unwrap();
-            sleep(Duration::from_secs(6));
+            sleep(Duration::from_secs(4));
             pwm(motor, 1000).unwrap();
-            sleep(Duration::from_secs(6));
+            sleep(Duration::from_secs(4));
             write(motor, OFF).unwrap();
             sleep(Duration::from_secs(3));
         });
@@ -316,8 +323,8 @@ pub fn calibrate() {
         handle.join();
     }
 
-    println!("Motors calibrated");
-    println!("Shutting down");
+    println!("[Motors]: Motors calibrated");
+    println!("[Motors]: Shutting down");
 
     for motor in config.motors.clone() {
         stop(motor);
@@ -331,8 +338,10 @@ pub fn calibrate() {
 
 fn arm(motor: u32) -> thread::JoinHandle<()> {
     thread::spawn(move || {
-        pwm(motor, 0).unwrap();
-        sleep(Duration::from_secs(2));
+//        pwm(motor, 1000).unwrap();
+//        sleep(Duration::from_secs(1));
+        pwm(motor, 1500).unwrap();
+        sleep(Duration::from_secs(1));
         pwm(motor, 1000).unwrap();
         sleep(Duration::from_secs(2));
 

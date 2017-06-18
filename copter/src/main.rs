@@ -12,8 +12,13 @@ extern crate debug_server;
 extern crate protobuf;
 extern crate protos;
 
+extern crate ansi_term;
+
+use debug_server::Signal;
+
 use std::io::stdin;
 use std::string::String;
+use std::thread;
 
 mod motor;
 use motor::MotorManager;
@@ -25,44 +30,57 @@ use config::Config;
 
 use connection::Peer;
 
+use ansi_term::Colour::*;
+
 fn main() {
     let config = Config::new();
+    println!("{}", Green.paint("[Input]: Press enter to start motors or type 'calibrate' to calibrate."));
 
-//    motor::calibrate();
-    start();
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("Error");
+    match input.trim() {
+        "calibrate" => {
+            motor::calibrate();
+        }
+        _ => {
+            start();
+        }
+    }
+
 }
 
 fn start() {
     let config = Config::new();
+
     let debug_pipe = debug_server::init_debug_port(config.debug_websocket_port);
-    //    let mut peer = Peer::new();
-    let mut manager = MotorManager::new();
-    manager.new_motor(config.motors[0]);
-    manager.new_motor(config.motors[1]);
-    manager.new_motor(config.motors[2]);
-    manager.new_motor(config.motors[3]);
-    println!("Press enter to self control.");
-    let mut input = String::new();
-    stdin().read_line(&mut input).expect("Error");
+    let mut motor_manager = MotorManager::new();
+    for motor in config.motors.clone() {
+        motor_manager.new_motor(motor);
+    }
 
     let mut peer = Peer::new();
 
-    if config.motors_on {
-        manager.arm();
-    }
-    manager.start_pid_loop(config, &mut peer, debug_pipe.clone());
-    peer.connect_to_server();
-    peer.start_connection_loop(debug_pipe.clone());
+    println!("{}", Green.paint("[Input]: Press enter to self control."));
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("Error");
 
-    println!("Press enter to self stop.");
+    motor_manager.start_pid_loop(config, &mut peer, debug_pipe.clone());
+    let clone = debug_pipe.clone();
+    thread::spawn(move || {
+        peer.connect_to_server();
+        peer.start_connection_loop(clone);
+    });
+
+    println!("{}", Green.paint("[Input]: Press enter to stop."));
 
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
     match input {
         _ => {
-            println!("unrecognized input...");
             motor::terminate_all_motors(debug_pipe.clone());
             std::process::exit(0);
         }
     }
 }
+
+

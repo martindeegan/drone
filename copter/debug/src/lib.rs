@@ -33,18 +33,18 @@ const DEBUG_PROTOCOL: &str = "drone-debug";
 fn shutdown_port(client: &mut Client<TcpStream>) -> Result<(),()> {
     match client.shutdown() {
         Ok(()) => {
-            println!("Debug client successfully shutdown.");
+            println!("[Debug]: Debug client successfully shutdown.");
             Ok(())
         },
         Err(e) => {
-            println!("Error shutting down debug client: {:?}", e);
+            println!("[Debug]: Error shutting down debug client: {:?}", e);
             Err(())
         }
     }
 }
 
 fn start_port(server: &mut Server<NoTlsAcceptor>) -> Result<Client<TcpStream>,()> {
-    println!("Debug port waiting for a connection.");
+    println!("[Debug]: Debug port waiting for a connection.");
     'search: loop {
         match server.accept() {
             Ok(upgrade) => {
@@ -54,7 +54,7 @@ fn start_port(server: &mut Server<NoTlsAcceptor>) -> Result<Client<TcpStream>,()
                 match upgrade.use_protocol(DEBUG_PROTOCOL).accept() {
                     Ok(client) => {
                         let ip = client.peer_addr().unwrap();
-                        println!("Debug connection from {}", ip);
+                        println!("[Debug]: Debug connection from {}", ip);
                         return Ok(client);
                     },
                     _ => { }
@@ -90,8 +90,8 @@ pub fn init_debug_port(port : i32) -> Sender<Signal> {
                     }
                 },
                 Ok(Signal::Stop) => {
-                    println!("Shutdown debug port.");
                     shutdown_port(&mut client).unwrap();
+                    break;
                 }
                 _ => {}
             }

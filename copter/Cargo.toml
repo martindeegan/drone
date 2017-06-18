@@ -2,7 +2,6 @@
 name = "drone"
 version = "0.1.0"
 authors = ["Thomas Deegan <tadeegan@gmail.com>", "Martin Deegan <mddeegan@gmail.com>"]
-build = "build.rs"
 
 [dependencies]
 rust-pigpio = "0.2.0"
@@ -14,6 +13,7 @@ serde = "1.0.8"
 serde_derive = "1.0.8"
 protos = {path = "./protos"}
 protobuf = "1.2.2"
+ansi_term = "0.9.0"
 
 [[bin]]
 name = "drone"

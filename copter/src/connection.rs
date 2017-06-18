@@ -52,49 +52,59 @@ impl Peer {
     pub fn connect_to_server(&self) {
         let config = Config::new();
         let server_addr = config.server_address;
-        println!("Connecting to server");
+        println!("[Connection]: Connecting to server");
         let msg: String = String::from("drone");
         self.sock.send_to(msg.as_bytes(), server_addr).unwrap();
-        println!("Sent message to server. Awaiting response.");
+        println!("[Connection]: Sent message to server. Awaiting response.");
 
         let mut response = String::from("                                                             ",);
         unsafe { self.sock.recv(response.as_mut_vec().borrow_mut()).unwrap() };
-        println!("Got response: {}", response.trim());
+        println!("[Connection]: Got response: {}", response.trim());
 
         response = String::from("                                                             ");
         unsafe { self.sock.recv(response.as_mut_vec().borrow_mut()).unwrap() };
-        println!("Got controller address: {}", response);
+        println!("[Connection]: Got controller address: {}", response);
         let controller_ip = Ipv4Addr::from_str(response.trim()).unwrap();
 
         response = String::from("                                                             ");
         unsafe { self.sock.recv(response.as_mut_vec().borrow_mut()).unwrap() };
-        println!("Got controller port: {:?}", response.trim());
+        println!("[Connection]: Got controller port: {:?}", response.trim());
         let controller_port: u16 = response.trim().to_string().parse::<u16>().unwrap();
 
-        println!("Connecting to {:?}:{}.", controller_ip, controller_port);
+        println!("[Connection]: Connecting to {:?}:{}.", controller_ip, controller_port);
         self.sock
             .connect(SocketAddrV4::new(controller_ip, controller_port))
             .unwrap();
         sleep(std::time::Duration::from_secs(1));
-        println!("Here");
+        println!("[Connection]: Here");
 
-        let msg: String = String::from_str("Hello").unwrap();
-        self.sock.send(msg.as_bytes());
+        let clone = self.sock.try_clone().unwrap();
+        let (tx, rx): (Sender<bool>, Receiver<bool>) = channel();
+        thread::spawn(move || {
+            loop {
+                let msg: String = String::from_str("Hello").unwrap();
+                clone.send(msg.as_bytes());
+                match rx.try_recv() {
+                    Ok(stop) => {
+                        break;
+                    },
+                    _ => { }
+                }
+            }
+        });
 
         'p2ploop: loop {
-            println!(".asdf");
-
-
             let mut buf = [0; 10];
             match self.sock.recv(&mut buf) {
                 Ok(size) => {
-                    println!("Successfully connected to controller. {:?}", buf);
+                    println!("[Connection]: Received message from endpoint.");
                     if size > 0 {
+                        tx.send(true).unwrap();
                         break 'p2ploop;
                     }
                 }
                 Err(e) => {
-                    println!("I feel terrible...");
+                    println!("[Connection]: Error connecting. Retrying.");
                 }
             }
         }
@@ -105,7 +115,7 @@ impl Peer {
             thread::sleep(Duration::seconds(1).to_std().unwrap());
         }
 
-        println!("Successfully connected to controller.");
+        println!("[Connection]: Successfully connected to controller.")
 
     }
 
@@ -131,7 +141,7 @@ impl Peer {
                                             input_subscriber.send(input);
                                         },
                                         Err(a) => {
-                                            println!("Something bad: {}", a);
+                                            println!("[Connection]: Something bad: {}", a);
                                         }
                                     }
                                 },
