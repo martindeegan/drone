@@ -95,18 +95,26 @@ impl Div<f32> for GyroSensorData {
 
 fn init_gyro(mut device : &mut LinuxI2CDevice) {
     // init sequence
-    device.smbus_write_byte_data(L3G_CTRL_REG1, 0b00001111).unwrap();
+    let DR = 0b00000000; // Digital Output Rate 00. 95 Hz
+    let BW = 0b00000000; // Cut off: 12.5??
+    let PD = 0b00001000; // Power mode. Normal.
+    let AXIS = 0b00000111; // Enable X,Y,Z axis.
+    device.smbus_write_byte_data(L3G_CTRL_REG1, DR | BW | PD | AXIS).unwrap();
     // Set the dps to 2k.
-    device.smbus_write_byte_data(L3G_CTRL_REG4, 0b00110000).unwrap();
+
+    let BDU = 0b000000000; // Block update: 0. Continuous.
+    let FS = 0b00110000; // Full Scale Selection 11: 2k dps.
+    let BLE = 0b00000000;// Big/Little endian. 0: Data LSb @ lower address
+    device.smbus_write_byte_data(L3G_CTRL_REG4, BDU | FS | BLE).unwrap();
     thread::sleep(Duration::from_millis(200));
 }
 
 fn sample_gyro(mut device : &mut LinuxI2CDevice) -> GyroSensorData {
-    let results : Vec<u8> = device.smbus_read_i2c_block_data(0x80 | L3G_OUT_X_L, 6).unwrap();
+    let buf : Vec<u8> = device.smbus_read_i2c_block_data(0x80 | L3G_OUT_X_L, 6).unwrap();
     // This comes in the wrong order. WOW!
-    let x = (((results[1] as i16) << 8)  | (results[0] as i16) ) as f32 * G_GAIN;
-    let y = (((results[3] as i16) << 8) | (results[2] as i16)) as f32 * G_GAIN;
-    let z = (((results[5] as i16) << 8) | (results[4] as i16)) as f32 * G_GAIN;
+    let x : f32 = LittleEndian::read_i16(&[buf[0], buf[1]]) as f32 * G_GAIN;
+    let y : f32 = LittleEndian::read_i16(&[buf[2], buf[3]]) as f32 * G_GAIN;
+    let z : f32 = LittleEndian::read_i16(&[buf[4], buf[5]]) as f32 * G_GAIN;
     GyroSensorData {x: x, y: y, z: z}
 }
 
@@ -187,13 +195,13 @@ pub fn start_sensors(sensor_poll_time: i64, sea_level_pressure: f32) -> Result<R
 
                                     let linear_acceleration = sample_accelerometer(&mut accelerometer);
 
-
                                     let angle_acc_x = (linear_acceleration.x as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
                                     let angle_acc_y = (linear_acceleration.y as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
 
+                                    let alpha = 0.02;
                                     // Comment this out to just try the gyro readings.
-                                    sum = sum * 0.98 + GyroSensorData { x: angle_acc_x, y: angle_acc_y, z: sum.z } * 0.02;
-
+                                    sum = sum * (1.0 - alpha) - GyroSensorData { x: angle_acc_x, y: angle_acc_y, z: sum.z } * alpha;
+//                                    sum = GyroSensorData{ x: angle_acc_x, y: 0.0, z: 0.0};
                                     //------------Calculate Altitude----------------//
                                     let pressure = barometer.pressure_pa().unwrap();
                                     total_pressure = total_pressure + pressure;
