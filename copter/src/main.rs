@@ -14,8 +14,6 @@ extern crate protos;
 
 extern crate ansi_term;
 
-use debug_server::Signal;
-
 use std::io::stdin;
 use std::string::String;
 use std::thread;
@@ -33,7 +31,6 @@ use connection::Peer;
 use ansi_term::Colour::*;
 
 fn main() {
-    let config = Config::new();
     println!("{}", Green.paint("[Input]: Press enter to start motors or type 'calibrate' to calibrate."));
 
     let mut input = String::new();

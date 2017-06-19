@@ -12,25 +12,18 @@ use std;
 use std::string::String;
 use std::thread;
 use std::thread::sleep;
-use std::vec::Vec;
-use std::collections::HashMap;
 
 use config::Config;
 
-use time::{Duration, PreciseTime};
+use time::Duration;
 
 use motor;
 
 use protos::generated::controller_input::ControllerInput;
-use protobuf::core::{Message, MessageStatic, parse_from_bytes};
-use protobuf;
+use protobuf::core::parse_from_bytes;
 
 use debug_server;
 
-//#[cfg(not(rpi))]
-//const SERVER_ADDR: &str = "127.0.0.1:7070";
-//#[cfg(rpi)]
-const SERVER_ADDR: &str = "13.59.251.61:7070";
 const LOCAL_ADDR: &str = "0.0.0.0:27136";
 
 const INPUT_ID: u8 = 1;
@@ -42,7 +35,9 @@ pub struct Peer {
 
 impl Peer {
     pub fn new() -> Peer {
-        let (tx, rx) = channel();
+        #[allow(dead_code)]
+        let (tx, _) = channel();
+
         Peer {
             sock: UdpSocket::bind(LOCAL_ADDR).unwrap(),
             input_sub: tx,
@@ -76,20 +71,20 @@ impl Peer {
             .connect(SocketAddrV4::new(controller_ip, controller_port))
             .unwrap();
         sleep(std::time::Duration::from_secs(1));
-        println!("[Connection]: Here");
 
         let clone = self.sock.try_clone().unwrap();
         let (tx, rx): (Sender<bool>, Receiver<bool>) = channel();
         thread::spawn(move || {
             loop {
                 let msg: String = String::from_str("Hello").unwrap();
-                clone.send(msg.as_bytes());
+                clone.send(msg.as_bytes()).unwrap();
                 match rx.try_recv() {
-                    Ok(stop) => {
+                    Ok(_) => {
                         break;
                     },
                     _ => { }
                 }
+                thread::sleep(std::time::Duration::from_secs(1));
             }
         });
 
@@ -104,14 +99,14 @@ impl Peer {
                     }
                 }
                 Err(e) => {
-                    println!("[Connection]: Error connecting. Retrying.");
+                    println!("[Connection]: Error connecting. Retrying. {:?}", e);
                 }
             }
         }
 
-        for i in 0..5 {
+        for _ in 0..5 {
             let msg: String = String::from_str("Hello").unwrap();
-            self.sock.send(msg.as_bytes());
+            self.sock.send(msg.as_bytes()).unwrap();
             thread::sleep(Duration::seconds(1).to_std().unwrap());
         }
 
@@ -138,7 +133,7 @@ impl Peer {
                                 INPUT_ID => {
                                     match parse_from_bytes::<ControllerInput>(&buf[0 .. size]) {
                                         Ok(input) => {
-                                            input_subscriber.send(input);
+                                            input_subscriber.send(input).unwrap();
                                         },
                                         Err(a) => {
                                             println!("[Connection]: Something bad: {}", a);

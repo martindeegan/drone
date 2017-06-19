@@ -10,5 +10,6 @@
   "server_address": "13.59.251.61:7070",
   "hover_power": 1350,
   "max_motor_speed": 1600,
-  "debug_websocket_port": 27070
+  "debug_websocket_port": 27070,
+  "sea_level_pressure": 0.0
 }

@@ -4,8 +4,13 @@ extern crate i2cdev;
 extern crate time;
 extern crate byteorder;
 
+mod barometer;
 mod constants;
 use constants::*;
+
+use barometer::BMP180BarometerThermometer;
+use barometer::BMP180PressureMode;
+use barometer::BMP180_I2C_ADDR;
 
 use std::thread;
 use std::time::Duration;
@@ -21,6 +26,7 @@ use f32::consts::PI;
 use std::f32;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::{Sender, Receiver};
+use std::collections::VecDeque;
 
 const GYRO_ADDRESS: u16 = 0x6B;
 const ACCELEROMETER_ADDRESS: u16 = 0x1d;
@@ -104,7 +110,7 @@ fn sample_gyro(mut device : &mut LinuxI2CDevice) -> GyroSensorData {
     GyroSensorData {x: x, y: y, z: z}
 }
 
-fn inite_accelerometer(mut device : &mut LinuxI2CDevice) {
+fn init_accelerometer(mut device : &mut LinuxI2CDevice) {
     // init sequence
     //  z,y,x axis enabled , 100Hz data rate
     device.smbus_write_byte_data(LSM303_CTRL_REG1_A, 0b01010111).unwrap();
@@ -125,65 +131,104 @@ fn sample_accelerometer(mut device : &mut LinuxI2CDevice) -> AccelerometerData {
 // Maybe go lower?
 const OFFSET_GROWTH: f32 = 0.001;
 
-pub fn start_sensors(sensor_poll_time: i64) -> Result<Receiver<GyroSensorData>, LinuxI2CError> {
+pub struct SensorOutput(pub GyroSensorData, pub f32);
+
+const AVG_SEA_LEVEL_PRESSURE_HPA: f32 = 1013.25;
+const ALT_POW: f32 = 1.0 / 5.255;
+
+fn calculate_altitude_m(pressure_pa: f32, sea_level_pressure_hpa: f32) -> f32 {
+    let pressure_hpa = pressure_pa / 100.0;
+    let prop = 1.0 - (pressure_hpa / sea_level_pressure_hpa).powf(ALT_POW);
+    44330.0 * prop
+}
+
+pub fn start_sensors(sensor_poll_time: i64, sea_level_pressure: f32) -> Result<Receiver<SensorOutput>, LinuxI2CError> {
 
     println!("Sensor poll time: {}", sensor_poll_time);
     let sample_time = time::Duration::milliseconds(sensor_poll_time);
 
-    let (transmitter, receiver): (Sender<GyroSensorData>, Receiver<GyroSensorData>) = channel();
+    let (transmitter, receiver): (Sender<SensorOutput>, Receiver<SensorOutput>) = channel();
     match LinuxI2CDevice::new("/dev/i2c-1", GYRO_ADDRESS) {
         Ok(mut gyroscope) => {
             match LinuxI2CDevice::new("/dev/i2c-1", ACCELEROMETER_ADDRESS) {
                 Ok(mut accelerometer) => {
-                    init_gyro(&mut gyroscope);
-                    inite_accelerometer(&mut accelerometer);
-                    std::thread::spawn(move || {
+                    let barometer_dev = LinuxI2CDevice::new("/dev/i2c-1", BMP180_I2C_ADDR).unwrap();
+                    match BMP180BarometerThermometer::new(barometer_dev, BMP180PressureMode::BMP180Standard) {
+                        Ok(mut barometer) => {
+                            init_gyro(&mut gyroscope);
+                            init_accelerometer(&mut accelerometer);
 
-                        // Assume we start on a relatively flat surface.
-                        let mut sum = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
-                        let mut last_sample_time = PreciseTime::now();
-                        // We add an offset to account for the gyro's tendency to randomly increase.
-                        let mut gyro_offset = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
-                        loop {
-                            let curr_time = PreciseTime::now();
-                            let dt: f32 = last_sample_time.to(curr_time).num_microseconds().unwrap() as f32 / 1000000.0;
-                            // Returns angular speed with respect to time. degrees/dt
-                            let degrees_per_second = sample_gyro(&mut gyroscope) - gyro_offset;
-                            let change_in_degrees = degrees_per_second * dt;
+                            std::thread::spawn(move || {
+                                // Assume we start on a relatively flat surface.
+                                let mut sum = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
+                                let mut last_sample_time = PreciseTime::now();
+                                // We add an offset to account for the gyro's tendency to randomly increase.
+                                let mut gyro_offset = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
 
-                            // compute changing offset very slowly over time as to not interfere with actual changes.
-                            gyro_offset = gyro_offset * (1.0 - OFFSET_GROWTH) + change_in_degrees * OFFSET_GROWTH;
-                            sum = sum + change_in_degrees;
+                                let mut sea_level_pressure = sea_level_pressure;
+                                if sea_level_pressure == 0.0 {
+                                    sea_level_pressure = AVG_SEA_LEVEL_PRESSURE_HPA;
+                                }
 
-                            let linear_acceleration = sample_accelerometer(&mut accelerometer);
+                                let mut pressure_deque: VecDeque<f32> = VecDeque::new();
+                                let mut total_pressure: f32 = 0.0;
+                                loop {
+
+                                    //-------------Calculate Angle----------------//
+                                    let curr_time = PreciseTime::now();
+                                    let dt: f32 = last_sample_time.to(curr_time).num_microseconds().unwrap() as f32 / 1000000.0;
+                                    // Returns angular speed with respect to time. degrees/dt
+                                    let degrees_per_second = sample_gyro(&mut gyroscope) - gyro_offset;
+                                    let change_in_degrees = degrees_per_second * dt;
+
+                                    // compute changing offset very slowly over time as to not interfere with actual changes.
+                                    gyro_offset = gyro_offset * (1.0 - OFFSET_GROWTH) + change_in_degrees * OFFSET_GROWTH;
+                                    sum = sum + change_in_degrees;
+
+                                    let linear_acceleration = sample_accelerometer(&mut accelerometer);
 
 
-                            let angle_acc_x = (linear_acceleration.x as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
-                            let angle_acc_y = (linear_acceleration.y as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
+                                    let angle_acc_x = (linear_acceleration.x as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
+                                    let angle_acc_y = (linear_acceleration.y as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
 
-                            // Comment this out to just try the gyro readings.
-                            sum = sum  * 0.98 + GyroSensorData {x: angle_acc_x, y: angle_acc_y, z: sum.z} * 0.02;
+                                    // Comment this out to just try the gyro readings.
+                                    sum = sum * 0.98 + GyroSensorData { x: angle_acc_x, y: angle_acc_y, z: sum.z } * 0.02;
 
-                            transmitter.send(sum).unwrap();// Should handle error here in the future.
+                                    //------------Calculate Altitude----------------//
+                                    let pressure = barometer.pressure_pa().unwrap();
+                                    total_pressure = total_pressure + pressure;
+                                    pressure_deque.push_back(pressure);
+                                    let mut altitude: f32 = 0.0;
+                                    if pressure_deque.len() == 5 {
+                                        altitude = calculate_altitude_m(total_pressure / 5.0, sea_level_pressure);
+                                        total_pressure = total_pressure - pressure_deque.pop_front().unwrap();
+                                    }
+                                    transmitter.send(SensorOutput(sum, altitude)).unwrap();// Should handle error here in the future.
 
-                            // Sleep until the sample time has passed +- 10 millis.
-                            while last_sample_time.to(PreciseTime::now()) < sample_time {
-                                thread::sleep(Duration::from_millis(1));
-                            }
-                            last_sample_time = curr_time;
+                                    // Sleep until the sample time has passed +- 10 millis.
+                                    while last_sample_time.to(PreciseTime::now()) < sample_time {
+                                        thread::sleep(Duration::from_millis(1));
+                                    }
+                                    last_sample_time = curr_time;
+                                }
+                            });
+
+                            return Ok(receiver);
+                        },
+                        Err(e) => {
+                            println!("Failed to connect to barometer. {}", e);
+                            Err(e)
                         }
-                    });
-
-                    return Ok(receiver);
+                    }
                 },
                 Err(e) => {
-                    println!("Failed to connect to accelerometer. {}", e);
+                    println ! ("Failed to connect to accelerometer. {}", e);
                     Err(e)
                 }
             }
         },
         Err(e) => {
-            println!("Failed to connect to gyro. {}", e);
+            println ! ("Failed to connect to gyro. {}", e);
             Err(e)
         }
     }

@@ -18,6 +18,7 @@ pub struct Config {
     pub hover_power: u32,
     pub max_motor_speed: u32,
     pub debug_websocket_port: i32,
+    pub sea_level_pressure: f32
 }
 
 impl Config {

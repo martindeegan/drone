@@ -6,20 +6,18 @@ use std::thread;
 use std::thread::sleep;
 use std::thread::JoinHandle;
 
-use std::collections::VecDeque;
 use std::time::Duration;
 use std::f32;
-use std::sync::mpsc::{Sender, Receiver, TryRecvError};
+use std::sync::mpsc::{Sender, Receiver};
 
 const MAX_VALUE: u32 = 1600;
 const MIN_VALUE: u32 = 1100;
 
 use sensors::GyroSensorData;
 use sensors::start_sensors;
+use sensors::SensorOutput;
 
 use time;
-
-use std::io::Write;
 
 use connection::Peer;
 
@@ -34,10 +32,10 @@ pub struct MotorManager {
 pub fn terminate_all_motors(debug_pipe : Sender<debug_server::Signal>) {
     println!("[Motors]: TERMINATING MOTORS!");
 
-    debug_pipe.send(debug_server::Signal::Stop);
+    debug_pipe.send(debug_server::Signal::Stop).unwrap();
 
     for x in Config::new().motors {
-        write(x, OFF);
+        write(x, OFF).unwrap();
     }
 
     terminate();
@@ -75,8 +73,8 @@ impl MotorManager {
             handles.push(arm(motor));
         }
 
-        for mut handle in handles {
-            handle.join();
+        for handle in handles {
+            handle.join().unwrap();
         }
 
         println!("[Motors]: Motors armed.");
@@ -95,9 +93,9 @@ impl MotorManager {
 
         let controller_input = peer.subscribe_input();
 
-        let sensor_input: Receiver<GyroSensorData>;
+        let sensor_input: Receiver<SensorOutput>;
         let sensor_poll_time = config.sensor_poll_time;
-        match start_sensors(sensor_poll_time) {
+        match start_sensors(sensor_poll_time, config.sea_level_pressure) {
             Ok(recv) => {
                 sensor_input = recv;
             }
@@ -107,10 +105,10 @@ impl MotorManager {
             }
         };
 
-        let MOTOR_1 = self.motors[0];
-        let MOTOR_2 = self.motors[1];
-        let MOTOR_3 = self.motors[2];
-        let MOTOR_4 = self.motors[3];
+        let motor_1 = self.motors[0];
+        let motor_2 = self.motors[1];
+        let motor_3 = self.motors[2];
+        let motor_4 = self.motors[3];
 
         if config.motors_on {
             self.arm();
@@ -130,12 +128,8 @@ impl MotorManager {
                 y: 0.0,
                 z: 0.0,
             };
+
             let mut last_proportional = GyroSensorData {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            };
-            let mut int_decay: GyroSensorData = GyroSensorData {
                 x: 0.0,
                 y: 0.0,
                 z: 0.0,
@@ -148,8 +142,12 @@ impl MotorManager {
             let ki = config.ki;
             let kd = config.kd;
 
+            let mut dynamic_ki: f32 = 0.98;
+
             let mut mid = config.hover_power as f32;
+
             loop {
+                dynamic_ki = 0.98;
                 let mut up_force = 0.0;
                 match controller_input.try_recv() {
                     Ok(desired) => {
@@ -173,11 +171,12 @@ impl MotorManager {
                 }
 
                 mid = mid + up_force;
-                let mut current_orientation = sensor_input.recv().unwrap();
+                let SensorOutput(mut current_orientation, mut current_altitude) = sensor_input.recv().unwrap();
                 loop {
                     match sensor_input.try_recv() {
-                        Ok(orientation) => {
+                        Ok(SensorOutput(orientation, altitude)) => {
                             current_orientation = orientation;
+                            current_altitude = altitude;
                         }
                         Err(_) => {
                             break;
@@ -188,7 +187,7 @@ impl MotorManager {
 
                 let t = time::PreciseTime::now();
                 let dt: f32 = last_sample_time.to(t).num_microseconds().unwrap() as f32 / 1000000.0;
-                let mut last_sample_time = t;
+                last_sample_time = t;
 
                 //Safety check
                 if current_orientation.x.abs() > config.motor_cutoff {
@@ -198,9 +197,7 @@ impl MotorManager {
                 }
 
 
-                let proportional = (desired_orientation - current_orientation);
-
-                let dynamic_ki: f32 = 1.0;
+                let proportional = desired_orientation - current_orientation;
 
                 integral = integral + proportional * dt;
                 integral = integral * dynamic_ki;
@@ -223,7 +220,7 @@ impl MotorManager {
                     d: derivative.x * kd,
                 };
 
-                debug_pipe.send(debug_server::Signal::Log(debug_data));
+                debug_pipe.send(debug_server::Signal::Log(debug_data)).unwrap();
 
                 let x_1 = mid - power.x;
                 let x_2 = mid - power.x;
@@ -241,10 +238,10 @@ impl MotorManager {
                 let m_4 = (x_4 + y_4) / 2.0;
 
                 if config.motors_on {
-                    set_power(MOTOR_1, m_1 as u32);
-                    set_power(MOTOR_2, m_2 as u32);
-                    set_power(MOTOR_3, m_3 as u32);
-                    set_power(MOTOR_4, m_4 as u32);
+                    set_power(motor_1, m_1 as u32);
+                    set_power(motor_2, m_2 as u32);
+                    set_power(motor_3, m_3 as u32);
+                    set_power(motor_4, m_4 as u32);
                 }
             }
         });
@@ -256,18 +253,11 @@ impl MotorManager {
 // 0.244381;
 //0.000529;
 
-const MAX_RANGE: f32 = 300.0;
-const MIN_RANGE: f32 = 100.0;
-
-const MAX_MID_ACCEL: f32 = 10.0;
-const MAX_MIN_DECCEL: f32 = -10.0;
-
-fn calculate_error(current: GyroSensorData, desired: GyroSensorData) -> f32 {
-    let diff_x = desired.x - current.x;
-    let diff_y = desired.y - current.y;
-
-    (diff_x * diff_x + diff_y - diff_y).sqrt()
-}
+//const MAX_RANGE: f32 = 300.0;
+//const MIN_RANGE: f32 = 100.0;
+//
+//const MAX_MID_ACCEL: f32 = 10.0;
+//const MAX_MIN_DECCEL: f32 = -10.0;
 
 impl std::ops::Drop for MotorManager {
     fn drop(&mut self) {
@@ -319,8 +309,8 @@ pub fn calibrate() {
         handles.push(handle);
     }
 
-    for mut handle in handles {
-        handle.join();
+    for handle in handles {
+        handle.join().unwrap();
     }
 
     println!("[Motors]: Motors calibrated");
