@@ -222,10 +222,10 @@ impl MotorManager {
 
                 debug_pipe.send(debug_server::Signal::Log(debug_data)).unwrap();
 
-                let x_1 = mid - power.x;
-                let x_2 = mid - power.x;
-                let x_3 = mid + power.x;
-                let x_4 = mid + power.x;
+                let x_1 = mid + power.x;
+                let x_2 = mid + power.x;
+                let x_3 = mid - power.x;
+                let x_4 = mid - power.x;
 
                 let y_1 = mid - power.y;
                 let y_2 = mid + power.y;
