@@ -30,7 +30,6 @@ class Line {
     }
 
     domain(time) {
-        console.log("compute domain: " + time + "ms")
         return (time - this.start_time) / DOMAIN * this.canvas.width
     }
 
@@ -62,7 +61,6 @@ class Line {
     }
 
     clear() {
-        console.log("calling clear");
         let ctx = this.ctx;
         ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         ctx.lineWidth = 1;
@@ -120,10 +118,6 @@ function checkData() {
         gotData = false;
         setTimeout(checkData, 1000);
     } else {
-        pline.clear();
-        dline.clear();
-        totalline.clear();
-        iline.clear();
         reconnect();
     }
 }
@@ -141,6 +135,10 @@ function reconnect() {
     }
     socket.onopen = function() {
         setStatus("Connected. Streaming data.");
+        pline.clear();
+        dline.clear();
+        totalline.clear();
+        iline.clear();
         setTimeout(checkData, 1000);
     }
     socket.onmessage = delegate;
