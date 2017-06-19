@@ -1,4 +1,3 @@
-//Drone project
 extern crate time;
 
 extern crate rust_pigpio;
