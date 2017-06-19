@@ -328,14 +328,12 @@ pub fn calibrate() {
 
 fn arm(motor: u32) -> thread::JoinHandle<()> {
     thread::spawn(move || {
-//        pwm(motor, 1000).unwrap();
-//        sleep(Duration::from_secs(1));
-        pwm(motor, 1500).unwrap();
+        pwm(motor, 1200).unwrap();
         sleep(Duration::from_secs(1));
         pwm(motor, 1000).unwrap();
         sleep(Duration::from_secs(2));
 
-        pwm(motor, 1300).unwrap();
+        pwm(motor, 1250).unwrap();
     })
 }
 

@@ -115,6 +115,7 @@ fn sample_gyro(mut device : &mut LinuxI2CDevice) -> GyroSensorData {
     let x : f32 = LittleEndian::read_i16(&[buf[0], buf[1]]) as f32 * G_GAIN;
     let y : f32 = LittleEndian::read_i16(&[buf[2], buf[3]]) as f32 * G_GAIN;
     let z : f32 = LittleEndian::read_i16(&[buf[4], buf[5]]) as f32 * G_GAIN;
+
     GyroSensorData {x: x, y: y, z: z}
 }
 
@@ -186,12 +187,13 @@ pub fn start_sensors(sensor_poll_time: i64, sea_level_pressure: f32) -> Result<R
                                     let curr_time = PreciseTime::now();
                                     let dt: f32 = last_sample_time.to(curr_time).num_microseconds().unwrap() as f32 / 1000000.0;
                                     // Returns angular speed with respect to time. degrees/dt
-                                    let degrees_per_second = sample_gyro(&mut gyroscope) - gyro_offset;
+                                    let degrees_per_second = sample_gyro(&mut gyroscope);// - gyro_offset;
                                     let change_in_degrees = degrees_per_second * dt;
 
                                     // compute changing offset very slowly over time as to not interfere with actual changes.
                                     gyro_offset = gyro_offset * (1.0 - OFFSET_GROWTH) + change_in_degrees * OFFSET_GROWTH;
                                     sum = sum + change_in_degrees;
+                                    println!("gyro x: {}", change_in_degrees.x);
 
                                     let linear_acceleration = sample_accelerometer(&mut accelerometer);
 
