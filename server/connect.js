@@ -3,9 +3,21 @@ const socket = dgram.createSocket('udp4');
 
 var controllerAddr;
 var controllerPort;
+var controllerTimeout;
 
 var droneAddr;
 var dronePort;
+var droneTimeout;
+
+function clearController() {
+  controllerAddr = null;
+  controllerPort = null;
+}
+
+function clearDrone() {
+  droneAddr = null;
+  dronePort = null;
+}
 
 function sendEndpoints() {
   let controllerEP = controllerAddr + ':' + controllerPort.toString();
@@ -15,35 +27,57 @@ function sendEndpoints() {
   socket.send(droneEP, controllerPort, controllerAddr);
   socket.send(controllerPort.toString(), dronePort, droneAddr);
 
-  controllerAddr = null;
-  controllerPort = null;
-  droneAddr = null;
-  dronePort = null;
+  if(controllerTimeout) {
+        clearTimeout(controllerTimeout);
+        controllerTimeout = null;
+  }
+
+  if(droneTimeout) {
+        clearTimeout(droneTimeout);
+        droneTimeout = null;
+  }
+  clearController();
+  clearDrone();
 }
 
 socket.on('message', (msg, rinfo) => {
-  console.log('Message origin: ' + rinfo.address + ':' + rinfo.port.toString());
   if(msg.length > 1) {
-    console.log(msg.toString());
     if(msg.toString() === 'controller') {
-      //Controller ping 
+      console.log('Controller connected');
+      clearTimeout(controllerTimeout);
       controllerAddr = rinfo.address;
       controllerPort = rinfo.port;
+      controllerTimeout = setTimeout(clearController, 5000);
 
       socket.send("Pong", controllerPort, controllerAddr);
-    }
-    else if(msg.toString() === 'drone') {
-      //Drone ping
+    } else if(msg.toString() === 'drone') {
+      console.log('Drone connected');
+      clearTimeout(droneTimeout);
       droneAddr = rinfo.address;
       dronePort = rinfo.port;
+      droneTimeout = setTimeout(clearDrone, 5000);
  
       socket.send("Pong", dronePort, droneAddr);
+    }
+  } else {
+    switch(rinfo.address) {
+      case controllerAddr: 
+        //Controller ping
+        clearTimeout(controllerTimeout);
+        controllerTimeout = setTimeout(clearController, 5000)
+        break;
+      case droneAddr: 
+        //Drone ping
+        clearTimeout(droneTimeout);
+        droneTimeout = setTimeout(clearDrone, 5000);
+        break;
     }
   }
 
   if(droneAddr && controllerAddr) {
     sendEndpoints();
   }
+
 });
 
 socket.on('listen', () => {
