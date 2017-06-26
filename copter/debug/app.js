@@ -68,8 +68,6 @@ class Line {
         for (var i = -RANGE; i < RANGE; i += 10) {
             ctx.beginPath();
             ctx.moveTo(0, this.range(i));
-            console.log("this.canvas.width: " + this.canvas.width);
-            console.log("this.range(i): " + this.range(i));
             ctx.lineTo(this.canvas.width, this.range(i));
             ctx.strokeStyle = '#AAA';
             ctx.stroke();
@@ -86,25 +84,37 @@ class Line {
 
 var canvas = document.getElementById("x-axis");
 canvas.width = document.body.clientWidth;
+var canvasy = document.getElementById("y-axis");
+canvasy.width = document.body.clientWidth;
 
-let totalline = new Line("x-axis", "red", "total");
-let pline = new Line("x-axis", "blue", "P");
-let iline = new Line("x-axis", "green", "I");
-let dline = new Line("x-axis", "orange", "D");
+let totalline_x = new Line("x-axis", "red", "total");
+let pline_x = new Line("x-axis", "blue", "P");
+let iline_x = new Line("x-axis", "green", "I");
+let dline_x = new Line("x-axis", "orange", "D");
 
-pline.clear();
+let totalline_y = new Line("y-axis", "red", "total");
+let pline_y = new Line("y-axis", "blue", "P");
+let iline_y = new Line("y-axis", "green", "I");
+let dline_y = new Line("y-axis", "orange", "D");
 
-function addData(t, total, p, i, d) {
-    pline.addData(t, p);
-    iline.addData(t, i);
-    dline.addData(t, d);
-    totalline.addData(t, total);
-    gotData = true;
-}
+pline_x.clear();
+pline_y.clear();
 
 var delegate = function(event) {
-    var components = event.data.split(",");
-    addData(parseInt(components[0]), parseFloat(components[1]), parseFloat(components[2]), parseFloat(components[3]), parseFloat(components[4]))
+    gotData = true;
+    let data = JSON.parse(event.data);
+    let time = data.time;
+    
+    pline_x.addData(time, data.x.p);
+    pline_y.addData(time, data.y.p);
+    iline_x.addData(time, data.x.i);
+    iline_y.addData(time, data.y.i);
+    dline_x.addData(time, data.x.d);
+    dline_y.addData(time, data.y.d);
+
+    totalline_x.addData(time, data.x.power);
+    totalline_y.addData(time, data.y.power);
+    
 };
 
 function setStatus(msg) {
@@ -123,7 +133,7 @@ function checkData() {
 }
 
 function reconnect() {
-    var socket = new WebSocket("ws://10.0.0.213:27070", "drone-debug");
+    var socket = new WebSocket("ws://10.0.0.147:27070", "drone-debug");
     socket.onerror = function() {
         setStatus("Connection closed... wating for connection.");
         setTimeout(reconnect, 500);
@@ -135,10 +145,8 @@ function reconnect() {
     }
     socket.onopen = function() {
         setStatus("Connected. Streaming data.");
-        pline.clear();
-        dline.clear();
-        totalline.clear();
-        iline.clear();
+        pline_x.clear();
+        pline_y.clear();
         setTimeout(checkData, 1000);
     }
     socket.onmessage = delegate;

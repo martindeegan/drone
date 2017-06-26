@@ -200,7 +200,6 @@ impl MotorManager {
                 let proportional = desired_orientation - current_orientation;
 
                 integral = integral + proportional * dt;
-                integral = integral * dynamic_ki;
                 let derivative = (proportional - last_proportional) / dt;
                 last_proportional = proportional;
 
@@ -214,10 +213,21 @@ impl MotorManager {
                         .to(time::PreciseTime::now())
                         .num_microseconds()
                         .unwrap(),
-                    power: power.x,
-                    p: proportional.x * kp,
-                    i: integral.x * ki,
-                    d: derivative.x * kd,
+                    x: debug_server::Axis {
+                        power: power.x,
+                        p: proportional.x * kp,
+                        i: integral.x * ki,
+                        d: derivative.x * kd,
+                    },
+                    y: debug_server::Axis {
+                        power: power.y,
+                        p: proportional.y * kp,
+                        i: integral.y * ki,
+                        d: derivative.y * kd,
+                    }
+
+
+
                 };
 
                 debug_pipe.send(debug_server::Signal::Log(debug_data)).unwrap();

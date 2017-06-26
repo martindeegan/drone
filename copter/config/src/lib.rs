@@ -1,7 +1,11 @@
+extern crate serde;
+extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
+
 use std::vec::Vec;
 use std::fs::File;
 use std::io::prelude::*;
-use serde_json;
 use std::string::String;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -28,7 +32,6 @@ impl Config {
         file.read_to_string(&mut contents)
             .expect("failed to read config.json");
         // Parse the string of data into serde_json::Value.
-        let v: Config = serde_json::from_str(&contents).expect("failed to desrialize json");
-        v
+        serde_json::from_str(&contents).expect("failed to desrialize json")
     }
 }

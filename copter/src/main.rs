@@ -3,14 +3,10 @@ extern crate time;
 extern crate rust_pigpio;
 extern crate sensors;
 
-extern crate serde;
-extern crate serde_json;
-#[macro_use]
-extern crate serde_derive;
-
 extern crate debug_server;
 extern crate protobuf;
 extern crate protos;
+extern crate config;
 
 extern crate ansi_term;
 
@@ -23,7 +19,6 @@ use motor::MotorManager;
 
 mod connection;
 
-mod config;
 use config::Config;
 
 use connection::Peer;

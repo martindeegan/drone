@@ -1,6 +1,6 @@
 #!/bin/sh
 
-export RPI_ADDR="pi@10.0.0.213"
+export RPI_ADDR="pi@10.0.0.147"
 export DRONE_FOLDER=$1
 
 echo '' > out.txt

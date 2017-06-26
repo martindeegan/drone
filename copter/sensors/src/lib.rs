@@ -193,7 +193,6 @@ pub fn start_sensors(sensor_poll_time: i64, sea_level_pressure: f32) -> Result<R
                                     // compute changing offset very slowly over time as to not interfere with actual changes.
                                     gyro_offset = gyro_offset * (1.0 - OFFSET_GROWTH) + change_in_degrees * OFFSET_GROWTH;
                                     sum = sum + change_in_degrees;
-                                    println!("gyro x: {}", change_in_degrees.x);
 
                                     let linear_acceleration = sample_accelerometer(&mut accelerometer);
 

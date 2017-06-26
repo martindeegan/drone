@@ -3,7 +3,7 @@
   "ki": 0.0,
   "kd": 0.0,
   "motors": [19, 20, 21, 26],
-  "motor_cutoff": 32.0,
+  "motor_cutoff": 38.0,
   "sensor_poll_time": 20,
   "motors_on": false,
   "integral_decay_time": 0.8,
