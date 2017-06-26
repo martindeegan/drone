@@ -1,0 +1,33 @@
+# SafeFlight
+This project is a pure rust implementation of a full drone project.
+
+## Features
+1) PID loop for drone simulation
+2) 
+
+## Teststed Hardware
+### Micro Controller
+- Raspberry Pi 3B (B is needed for Wifi). Otherwise any Pi will do.
+
+### Sensors
+- L3GD20 Gyroscope (XINY GY-89 10DOF) over i2c
+- BMP180 Barometer (XINY GY-89 10DOF) over i2c
+- LSM303D Acclereometer (XINY GY-89 10DOF) over i2c
+
+### ESC - Electronic Speed Controllers
+- Crazepony Littlebee 20A
+
+### Motors
+- Crazepony Emax Mt2213 935kv Brushless Motor
+
+## Installation
+1) Install Rust https://www.rust-lang.org/en-US/install.html
+2) Install Protobuf 3. For the Pi, you may need to install from source since there are no ARM releases.
+3) Build with cargo:
+~~~
+cargo build --release
+~~~
+4) Run with sudo:
+~~~
+sh run.sh
+~~~
