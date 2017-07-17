@@ -19,7 +19,7 @@ use sensors::SensorOutput;
 
 use time;
 
-use connection::Peer;
+use connection::InputStream;
 
 use config::Config;
 
@@ -64,13 +64,13 @@ impl MotorManager {
 
 
 
-    pub fn arm(&self) {
+    pub fn arm(&self, config: &Config) {
         println!("[Motors]: Arming motors.");
 
         let mut handles: Vec<JoinHandle<()>> = Vec::new();
 
         for motor in self.motors.clone() {
-            handles.push(arm(motor));
+            handles.push(arm(motor, config.hover_power));
         }
 
         for handle in handles {
@@ -89,21 +89,9 @@ impl MotorManager {
     }
 
     //PID STUFF
-    pub fn start_pid_loop(&self, config: Config, peer: &mut Peer, debug_pipe : Sender<debug_server::Signal>) {
-
-        let controller_input = peer.subscribe_input();
-
-        let sensor_input: Receiver<SensorOutput>;
+    pub fn start_pid_loop(&self, config: Config, controller_input: InputStream, debug_pipe : Sender<debug_server::Signal>) {
         let sensor_poll_time = config.sensor_poll_time;
-        match start_sensors(sensor_poll_time, config.sea_level_pressure) {
-            Ok(recv) => {
-                sensor_input = recv;
-            }
-            Err(e) => {
-                println!("[Motors]: Couldn't start sensors. Stopping. {:?}", e);
-                return;
-            }
-        };
+        let sensor_input = start_sensors(sensor_poll_time, config.sea_level_pressure).expect("Couldn't start sensors");
 
         let motor_1 = self.motors[0];
         let motor_2 = self.motors[1];
@@ -111,7 +99,7 @@ impl MotorManager {
         let motor_4 = self.motors[3];
 
         if config.motors_on {
-            self.arm();
+            self.arm(&config);
         }
 
         //PID thread
@@ -146,44 +134,48 @@ impl MotorManager {
 
             let mut mid = config.hover_power as f32;
 
+            // Clear the sensor channel since later we expect the loop to be running fast enough to
+            // only have one signal in the queue.
+            loop {
+                match sensor_input.try_recv() {
+                    Ok(a) => { },
+                    Err(_) => {
+                        break;
+                    },
+                }
+            }
+
+            let mut moving_average_d = GyroSensorData::zeros();
             loop {
                 dynamic_ki = 0.98;
                 let mut up_force = 0.0;
-                match controller_input.try_recv() {
-                    Ok(desired) => {
-                        desired_orientation.x = desired.get_orientation().x;
-                        desired_orientation.y = desired.get_orientation().y;
-                        up_force = desired.get_vertical_velocity();
-                        'inner: loop {
-                            match controller_input.try_recv() {
-                                Ok(desired) => {
-                                    desired_orientation.x = desired.get_orientation().x;
-                                    desired_orientation.y = desired.get_orientation().y;
-                                    up_force = desired.get_vertical_velocity();
-                                },
-                                Err(_) => {
-                                    break 'inner;
-                                }
-                            }
-                        }
-                    },
-                    Err(_) => { }
-                }
-
-                mid = mid + up_force;
-                let SensorOutput(mut current_orientation, mut current_altitude) = sensor_input.recv().unwrap();
+                // Get all queued updated from controller stream.
                 loop {
-                    match sensor_input.try_recv() {
-                        Ok(SensorOutput(orientation, altitude)) => {
-                            current_orientation = orientation;
-                            current_altitude = altitude;
-                        }
+                    match controller_input.try_recv() {
+                        Ok(desired) => {
+                            desired_orientation.x = desired.get_orientation().x;
+                            desired_orientation.y = desired.get_orientation().y;
+                            up_force = desired.get_vertical_velocity();
+                        },
                         Err(_) => {
                             break;
                         }
                     }
                 }
 
+                mid = mid + up_force;
+                let SensorOutput(mut current_orientation, mut current_altitude) = sensor_input.recv().unwrap();
+                loop {
+                    match sensor_input.try_recv() {
+                        Ok(a) => {
+                            // Consider making this a hard failure or removing this.
+                            println!("Received duplicate messages...");
+                        },
+                        Err(_) => {
+                            break;
+                        },
+                    }
+                }
 
                 let t = time::PreciseTime::now();
                 let dt: f32 = last_sample_time.to(t).num_microseconds().unwrap() as f32 / 1000000.0;
@@ -200,7 +192,9 @@ impl MotorManager {
                 let proportional = desired_orientation - current_orientation;
 
                 integral = integral + proportional * dt;
+                integral = integral * config.integral_decay;
                 let derivative = (proportional - last_proportional) / dt;
+                moving_average_d =  derivative * (1.0 / config.derivative_sampling as f32) + moving_average_d * (1.0 - (1.0 / config.derivative_sampling as f32));
                 last_proportional = proportional;
 
                 let range = 1.0;
@@ -224,10 +218,8 @@ impl MotorManager {
                         p: proportional.y * kp,
                         i: integral.y * ki,
                         d: derivative.y * kd,
-                    }
-
-
-
+                    },
+                    power: mid,
                 };
 
                 debug_pipe.send(debug_server::Signal::Log(debug_data)).unwrap();
@@ -246,7 +238,6 @@ impl MotorManager {
                 let m_2 = (x_2 + y_2) / 2.0;
                 let m_3 = (x_3 + y_3) / 2.0;
                 let m_4 = (x_4 + y_4) / 2.0;
-
                 if config.motors_on {
                     set_power(motor_1, m_1 as u32);
                     set_power(motor_2, m_2 as u32);
@@ -336,14 +327,14 @@ pub fn calibrate() {
 
 }
 
-fn arm(motor: u32) -> thread::JoinHandle<()> {
+fn arm(motor: u32, starting_power: u32) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         pwm(motor, 1200).unwrap();
         sleep(Duration::from_secs(1));
         pwm(motor, 1000).unwrap();
         sleep(Duration::from_secs(2));
 
-        pwm(motor, 1250).unwrap();
+        pwm(motor, starting_power).unwrap();
     })
 }
 

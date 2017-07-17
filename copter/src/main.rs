@@ -21,8 +21,6 @@ mod connection;
 
 use config::Config;
 
-use connection::Peer;
-
 use ansi_term::Colour::*;
 
 fn main() {
@@ -50,18 +48,14 @@ fn start() {
         motor_manager.new_motor(motor);
     }
 
-    let mut peer = Peer::new();
+    let stream = connection::connect_via_server(debug_pipe.clone());
 
     println!("{}", Green.paint("[Input]: Press enter to self control."));
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
 
-    motor_manager.start_pid_loop(config, &mut peer, debug_pipe.clone());
-    let clone = debug_pipe.clone();
-    thread::spawn(move || {
-        peer.connect_to_server();
-        peer.start_connection_loop(clone);
-    });
+    motor_manager.start_pid_loop(config, stream, debug_pipe.clone());
+
 
     println!("{}", Green.paint("[Input]: Press enter to stop."));
 

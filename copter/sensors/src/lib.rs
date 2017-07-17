@@ -44,6 +44,24 @@ pub struct OrientationData<T : Add + Sub> {
 type AccelerometerData = OrientationData<i16>;
 pub type GyroSensorData = OrientationData<DegreesPerSecond>;
 
+impl GyroSensorData {
+    pub fn zeros() -> GyroSensorData {
+        GyroSensorData {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
+    }
+
+    pub fn pow(self, f: f32) -> GyroSensorData {
+        GyroSensorData {
+            x: self.x.powf(f),
+            y: self.y.powf(f),
+            z: self.z.powf(f)
+        }
+    }
+}
+
 impl Add for GyroSensorData {
     type Output = GyroSensorData;
 

@@ -29,6 +29,7 @@ pub struct Axis {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DebugInfo {
     pub time: i64,
+    pub power: f32,
     pub x: Axis,
     pub y: Axis
 }
