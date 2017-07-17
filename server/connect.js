@@ -9,6 +9,8 @@ var droneAddr;
 var dronePort;
 var droneTimeout;
 
+const connectionTimeout = 30000; // 30 seconds.
+
 function clearController() {
   controllerAddr = null;
   controllerPort = null;
@@ -20,6 +22,7 @@ function clearDrone() {
 }
 
 function sendEndpoints() {
+  console.log("Send Enpoints.");
   let controllerEP = controllerAddr + ':' + controllerPort.toString();
   let droneEP = droneAddr + ':' + dronePort.toString();
 
@@ -47,7 +50,7 @@ socket.on('message', (msg, rinfo) => {
       clearTimeout(controllerTimeout);
       controllerAddr = rinfo.address;
       controllerPort = rinfo.port;
-      controllerTimeout = setTimeout(clearController, 5000);
+      controllerTimeout = setTimeout(clearController, connectionTimeout);
 
       socket.send("Pong", controllerPort, controllerAddr);
     } else if(msg.toString() === 'drone') {
@@ -55,7 +58,7 @@ socket.on('message', (msg, rinfo) => {
       clearTimeout(droneTimeout);
       droneAddr = rinfo.address;
       dronePort = rinfo.port;
-      droneTimeout = setTimeout(clearDrone, 5000);
+      droneTimeout = setTimeout(clearDrone, connectionTimeout);
  
       socket.send("Pong", dronePort, droneAddr);
     }
@@ -64,12 +67,12 @@ socket.on('message', (msg, rinfo) => {
       case controllerAddr: 
         //Controller ping
         clearTimeout(controllerTimeout);
-        controllerTimeout = setTimeout(clearController, 5000)
+        controllerTimeout = setTimeout(clearController, connectionTimeout)
         break;
       case droneAddr: 
         //Drone ping
         clearTimeout(droneTimeout);
-        droneTimeout = setTimeout(clearDrone, 5000);
+        droneTimeout = setTimeout(clearDrone, connectionTimeout);
         break;
     }
   }
