@@ -6,7 +6,7 @@ function insertAfter(newNode, referenceNode) {
 }
 
 class Line {
-    constructor(canvas_id, color, name) {
+    constructor(canvas_id, color, name, width) {
         var canvas = document.getElementById(canvas_id);
         var ctx = canvas.getContext('2d');
 
@@ -15,6 +15,7 @@ class Line {
         this.last_pt = null;
         this.start_time = 0;
         this.color = color;
+        this.width;
 
         let key = document.createElement("div");
         key.innerText = name;
@@ -47,7 +48,7 @@ class Line {
         ctx.moveTo(this.domain(this.last_pt.time), this.range(this.last_pt.power));
         ctx.lineTo(this.domain(time), this.range(power));
         ctx.strokeStyle = this.color;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = this.width;
         ctx.stroke();
         this.last_pt = {
             time: time,
@@ -87,15 +88,15 @@ canvas.width = document.body.clientWidth;
 var canvasy = document.getElementById("y-axis");
 canvasy.width = document.body.clientWidth;
 
-let totalline_x = new Line("x-axis", "red", "total");
-let pline_x = new Line("x-axis", "blue", "P");
-let iline_x = new Line("x-axis", "green", "I");
-let dline_x = new Line("x-axis", "orange", "D");
+let totalline_x = new Line("x-axis", "red", "total", 3);
+let pline_x = new Line("x-axis", "blue", "P", 1);
+let iline_x = new Line("x-axis", "green", "I", 1);
+let dline_x = new Line("x-axis", "orange", "D", 1);
 
-let totalline_y = new Line("y-axis", "red", "total");
-let pline_y = new Line("y-axis", "blue", "P");
-let iline_y = new Line("y-axis", "green", "I");
-let dline_y = new Line("y-axis", "orange", "D");
+let totalline_y = new Line("y-axis", "red", "total", 3);
+let pline_y = new Line("y-axis", "blue", "P", 1);
+let iline_y = new Line("y-axis", "green", "I", 1);
+let dline_y = new Line("y-axis", "orange", "D", 1);
 
 pline_x.clear();
 pline_y.clear();
@@ -114,6 +115,8 @@ var delegate = function(event) {
 
     totalline_x.addData(time, data.x.power);
     totalline_y.addData(time, data.y.power);
+
+    console.log(data.power);
     
 };
 
