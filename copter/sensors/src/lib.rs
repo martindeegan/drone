@@ -28,8 +28,8 @@ use std::sync::mpsc::channel;
 use std::sync::mpsc::{Sender, Receiver};
 use std::collections::VecDeque;
 
-const GYRO_ADDRESS: u16 = 0x6B;
-const ACCELEROMETER_ADDRESS: u16 = 0x1d;
+const GYRO_ADDRESS: u16 = 0x6A;
+const ACCELEROMETER_ADDRESS: u16 = 0x1E;
 
 type DegreesPerSecond = f32;
 
@@ -58,6 +58,7 @@ impl GyroSensorData {
             x: self.x.powf(f),
             y: self.y.powf(f),
             z: self.z.powf(f)
+
         }
     }
 }
@@ -173,39 +174,41 @@ pub fn start_sensors(sensor_poll_time: i64, sea_level_pressure: f32) -> Result<R
 
     println!("Sensor poll time: {}", sensor_poll_time);
     let sample_time = time::Duration::milliseconds(sensor_poll_time);
-
     let (transmitter, receiver): (Sender<SensorOutput>, Receiver<SensorOutput>) = channel();
     match LinuxI2CDevice::new("/dev/i2c-1", GYRO_ADDRESS) {
         Ok(mut gyroscope) => {
             match LinuxI2CDevice::new("/dev/i2c-1", ACCELEROMETER_ADDRESS) {
                 Ok(mut accelerometer) => {
-                    let barometer_dev = LinuxI2CDevice::new("/dev/i2c-1", BMP180_I2C_ADDR).unwrap();
-                    match BMP180BarometerThermometer::new(barometer_dev, BMP180PressureMode::BMP180Standard) {
-                        Ok(mut barometer) => {
+//                    let barometer_dev = LinuxI2CDevice::new("/dev/i2c-1", BMP180_I2C_ADDR).unwrap();
+//                    match BMP180BarometerThermometer::new(barometer_dev, BMP180PressureMode::BMP180Standard) {
+//                        Ok(mut barometer) => {
                             init_gyro(&mut gyroscope);
                             init_accelerometer(&mut accelerometer);
 
                             std::thread::spawn(move || {
                                 // Assume we start on a relatively flat surface.
-                                let mut sum = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
+                                let mut sum = GyroSensorData::zeros();
                                 let mut last_sample_time = PreciseTime::now();
+                                thread::sleep(Duration::from_millis(50));
+
                                 // We add an offset to account for the gyro's tendency to randomly increase.
-                                let mut gyro_offset = GyroSensorData { x: 0.0, y: 0.0, z: 0.0 };
+                                let mut gyro_offset = GyroSensorData::zeros();
 
                                 let mut sea_level_pressure = sea_level_pressure;
                                 if sea_level_pressure == 0.0 {
                                     sea_level_pressure = AVG_SEA_LEVEL_PRESSURE_HPA;
                                 }
 
-                                let mut pressure_deque: VecDeque<f32> = VecDeque::new();
                                 let mut total_pressure: f32 = 0.0;
                                 loop {
 
                                     //-------------Calculate Angle----------------//
+
                                     let curr_time = PreciseTime::now();
                                     let dt: f32 = last_sample_time.to(curr_time).num_microseconds().unwrap() as f32 / 1000000.0;
+
                                     // Returns angular speed with respect to time. degrees/dt
-                                    let degrees_per_second = sample_gyro(&mut gyroscope);// - gyro_offset;
+                                    let degrees_per_second = sample_gyro(&mut gyroscope) - gyro_offset;
                                     let change_in_degrees = degrees_per_second * dt;
 
                                     // compute changing offset very slowly over time as to not interfere with actual changes.
@@ -214,23 +217,29 @@ pub fn start_sensors(sensor_poll_time: i64, sea_level_pressure: f32) -> Result<R
 
                                     let linear_acceleration = sample_accelerometer(&mut accelerometer);
 
-                                    let angle_acc_x = (linear_acceleration.x as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
-                                    let angle_acc_y = (linear_acceleration.y as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
+                                    let angle_acc_x = (linear_acceleration.y as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
+                                    let angle_acc_y = -1.0 * (linear_acceleration.x as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
 
                                     let alpha = 0.02;
                                     // Comment this out to just try the gyro readings.
-                                    sum = sum * (1.0 - alpha) - GyroSensorData { x: angle_acc_x, y: angle_acc_y, z: sum.z } * alpha;
-//                                    sum = GyroSensorData{ x: angle_acc_x, y: 0.0, z: 0.0};
-                                    //------------Calculate Altitude----------------//
-                                    let pressure = barometer.pressure_pa().unwrap();
-                                    total_pressure = total_pressure + pressure;
-                                    pressure_deque.push_back(pressure);
-                                    let mut altitude: f32 = 0.0;
-                                    if pressure_deque.len() == 5 {
-                                        altitude = calculate_altitude_m(total_pressure / 5.0, sea_level_pressure);
-                                        total_pressure = total_pressure - pressure_deque.pop_front().unwrap();
+                                    sum = sum * (1.0 - alpha) + GyroSensorData { x: angle_acc_x, y: angle_acc_y, z: sum.z } * alpha;
+//                                    println!("x: {}, y: {}, z: {}", linear_acceleration.x, linear_acceleration.y, linear_acceleration.z);
+//                                    ------------Calculate Altitude----------------//
+//                                    let pressure = barometer.pressure_pa().unwrap();
+//                                    total_pressure = total_pressure + pressure;
+//                                    pressure_deque.push_back(pressure);
+//                                    let mut altitude: f32 = 0.0;
+//                                    if pressure_deque.len() == 5 {
+//                                        altitude = calculate_altitude_m(total_pressure / 5.0, sea_level_pressure);
+//                                        total_pressure = total_pressure - pressure_deque.pop_front().unwrap();
+//                                    }
+                                    match transmitter.send(SensorOutput(sum, 0.0)) {
+                                        Ok(()) => {},
+                                        Err(e) => {
+                                            println!("{}", e);
+                                        }
                                     }
-                                    transmitter.send(SensorOutput(sum, altitude)).unwrap();// Should handle error here in the future.
+                                    // Should handle error here in the future.
 
                                     // Sleep until the sample time has passed +- 10 millis.
                                     while last_sample_time.to(PreciseTime::now()) < sample_time {
@@ -241,12 +250,12 @@ pub fn start_sensors(sensor_poll_time: i64, sea_level_pressure: f32) -> Result<R
                             });
 
                             return Ok(receiver);
-                        },
-                        Err(e) => {
-                            println!("Failed to connect to barometer. {}", e);
-                            Err(e)
-                        }
-                    }
+//                        },
+//                        Err(e) => {
+//                            println!("Failed to connect to barometer. {}", e);
+//                            Err(e)
+//                        }
+//                    }
                 },
                 Err(e) => {
                     println ! ("Failed to connect to accelerometer. {}", e);

@@ -106,18 +106,18 @@ var delegate = function(event) {
     let data = JSON.parse(event.data);
     let time = data.time;
     
-    pline_x.addData(time, data.x.p);
-    pline_y.addData(time, data.y.p);
-    iline_x.addData(time, data.x.i);
-    iline_y.addData(time, data.y.i);
-    dline_x.addData(time, data.x.d);
-    dline_y.addData(time, data.y.d);
+    pline_x.addData(time, data.pidaxes.p);
+    pline_y.addData(time, data.pidaxes.p_y);
+    iline_x.addData(time, data.pidaxes.i);
+    iline_y.addData(time, data.pidaxes.i_y);
+    dline_x.addData(time, data.pidaxes.d);
+    dline_y.addData(time, data.pidaxes.d_y);
 
-    totalline_x.addData(time, data.x.power);
-    totalline_y.addData(time, data.y.power);
+    totalline_x.addData(time, data.pidaxes.power);
+    totalline_y.addData(time, data.pidaxes.power_y);
 
     console.log(data.power);
-    
+
 };
 
 function setStatus(msg) {
@@ -136,7 +136,7 @@ function checkData() {
 }
 
 function reconnect() {
-    var socket = new WebSocket("ws://10.0.0.147:27070", "drone-debug");
+    var socket = new WebSocket("ws://192.168.1.11:27070", "drone-debug");
     socket.onerror = function() {
         setStatus("Connection closed... wating for connection.");
         setTimeout(reconnect, 500);

@@ -56,7 +56,6 @@ fn start() {
 
     motor_manager.start_pid_loop(config, stream, debug_pipe.clone());
 
-
     println!("{}", Green.paint("[Input]: Press enter to stop."));
 
     let mut input = String::new();

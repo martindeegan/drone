@@ -23,15 +23,18 @@ pub struct Axis {
     pub power: f32,
     pub p: f32,
     pub i: f32,
-    pub d: f32
+    pub d: f32,
+    pub power_y: f32,
+    pub p_y: f32,
+    pub i_y: f32,
+    pub d_y: f32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DebugInfo {
     pub time: i64,
     pub power: f32,
-    pub x: Axis,
-    pub y: Axis
+    pub pidaxes: Axis
 }
 
 pub enum Signal {
@@ -88,6 +91,7 @@ pub fn init_debug_port(port : i32) -> Sender<Signal> {
             match rx.recv() {
                 Ok(Signal::Log(debug_info)) => {
                     let msg_str = serde_json::to_string(&debug_info).unwrap();
+
                     match client.send_message(&Message::text(msg_str.as_ref())) {
                         Ok(()) => {},
                         _ => {

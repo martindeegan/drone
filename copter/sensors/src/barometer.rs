@@ -92,6 +92,7 @@ impl<T> BMP180BarometerThermometer<T>
         let real_pressure = calculate_real_pressure(reading.padc, b5, self.coeff, self.pressure_precision);
         Ok(real_pressure as f32)
     }
+
     pub fn pressure_hpa(&mut self) -> Result<f32, T::Error> {
         match self.pressure_pa() {
             Ok(x) => Ok(x / 100_f32),
@@ -198,7 +199,7 @@ fn calculate_real_pressure(padc: i32, b5: i32, coeff: BMP180CalibrationCoefficie
     x2 = ((coeff.b1 as i32) * ((b6 * b6) >> 12)) >> 16;
     x3 = ((x1 + x2) + 2) >> 2;
     let b4 = ((coeff.ac4 as u32) * (x3 as u32 + 32768)) >> 15;
-    let b7 = ((padc as u32 - b3 as u32) as u32) * (50000 >> oss.get_mode_value());
+    let b7 = (padc as u32 - b3 as u32) * (50000 >> oss.get_mode_value());
     let mut p: i32;
     if b7 < 0x80000000 {
         p = ((b7 * 2) / b4) as i32;

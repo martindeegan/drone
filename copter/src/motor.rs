@@ -10,6 +10,10 @@ use std::time::Duration;
 use std::f32;
 use std::sync::mpsc::{Sender, Receiver};
 
+use std::io::stdin;
+use ansi_term::Colour::*;
+use time;
+
 const MAX_VALUE: u32 = 1600;
 const MIN_VALUE: u32 = 1100;
 
@@ -17,13 +21,10 @@ use sensors::GyroSensorData;
 use sensors::start_sensors;
 use sensors::SensorOutput;
 
-use time;
-
 use connection::InputStream;
-
 use config::Config;
-
 use debug_server;
+
 
 pub struct MotorManager {
     pub motors: Vec<u32>,
@@ -62,9 +63,8 @@ impl MotorManager {
         println!("[Motors]: Stopped.");
     }
 
-
-
     pub fn arm(&self, config: &Config) {
+
         println!("[Motors]: Arming motors.");
 
         let mut handles: Vec<JoinHandle<()>> = Vec::new();
@@ -80,7 +80,6 @@ impl MotorManager {
         println!("[Motors]: Motors armed.");
 
         println!("[Motors]: Starting motors.");
-
     }
 
     pub fn new_motor(&mut self, gpio_pin: u32) {
@@ -101,6 +100,9 @@ impl MotorManager {
         if config.motors_on {
             self.arm(&config);
         }
+
+        let mut total_time = 0.0;
+        let mut last_total_time = 0.0;
 
         //PID thread
         thread::spawn(move || {
@@ -126,9 +128,13 @@ impl MotorManager {
             let mut last_sample_time = time::PreciseTime::now();
             let start = time::PreciseTime::now();
 
-            let kp = config.kp;
-            let ki = config.ki;
-            let kd = config.kd;
+            let mut pkp = config.pkp;
+            let mut pki = config.pki;
+            let mut pkd = config.pkd;
+
+            let mut rkp = config.rkp;
+            let mut rki = config.rki;
+            let mut rkd = config.rkd;
 
             let mut dynamic_ki: f32 = 0.98;
 
@@ -179,6 +185,24 @@ impl MotorManager {
 
                 let t = time::PreciseTime::now();
                 let dt: f32 = last_sample_time.to(t).num_microseconds().unwrap() as f32 / 1000000.0;
+                total_time += dt;
+                let a = dt / config.derivative_sampling;
+                if total_time - last_total_time > 1.0 {
+                    let c = Config::new();
+                    pkp = c.pkp;
+                    pki = c.pki;
+                    pkd = c.pkd;
+
+                    rkp = c.rkp;
+                    rki = c.rki;
+                    rkd = c.rkd;
+                    if desired_orientation.y != c.desired_angle {
+                        integral = GyroSensorData::zeros();
+                    }
+                    desired_orientation.y = c.desired_angle;
+                    mid = c.hover_power as f32;
+                    last_total_time = total_time;
+                }
                 last_sample_time = t;
 
                 //Safety check
@@ -188,18 +212,31 @@ impl MotorManager {
                     std::process::exit(0);
                 }
 
+//                println!("{}", desired_orientation.x);
+                let mut proportional = desired_orientation - current_orientation;
 
-                let proportional = desired_orientation - current_orientation;
+//                println!("co: {}", current_orientation.y);
 
                 integral = integral + proportional * dt;
                 integral = integral * config.integral_decay;
-                let derivative = (proportional - last_proportional) / dt;
-                moving_average_d =  derivative * (1.0 / config.derivative_sampling as f32) + moving_average_d * (1.0 - (1.0 / config.derivative_sampling as f32));
+                let mut derivative = (proportional - last_proportional) / dt;
+                moving_average_d =  derivative * a + moving_average_d * (1.0 - a);
                 last_proportional = proportional;
 
                 let range = 1.0;
 
-                let u: GyroSensorData = proportional * kp + integral * ki + derivative * kd;
+//                println!("p: {}, i: {}, d: {}", proportional.y, integral.y, moving_average_d.y);
+
+                proportional.x *= pkp;
+                proportional.y *= rkp;
+
+                integral.x *= pki;
+                integral.y *= rki;
+
+                moving_average_d.x *= pkd;
+                moving_average_d.y *= rkd;
+
+                let u: GyroSensorData = proportional + integral + moving_average_d;
                 let power = u * range;
 
                 let debug_data = debug_server::DebugInfo {
@@ -207,17 +244,15 @@ impl MotorManager {
                         .to(time::PreciseTime::now())
                         .num_microseconds()
                         .unwrap(),
-                    x: debug_server::Axis {
+                    pidaxes: debug_server::Axis {
                         power: power.x,
-                        p: proportional.x * kp,
-                        i: integral.x * ki,
-                        d: derivative.x * kd,
-                    },
-                    y: debug_server::Axis {
-                        power: power.y,
-                        p: proportional.y * kp,
-                        i: integral.y * ki,
-                        d: derivative.y * kd,
+                        p: proportional.x,
+                        i: integral.x,
+                        d: moving_average_d.x,
+                        power_y: power.y,
+                        p_y: proportional.y,
+                        i_y: integral.y,
+                        d_y: moving_average_d.y,
                     },
                     power: mid,
                 };
@@ -238,7 +273,8 @@ impl MotorManager {
                 let m_2 = (x_2 + y_2) / 2.0;
                 let m_3 = (x_3 + y_3) / 2.0;
                 let m_4 = (x_4 + y_4) / 2.0;
-                if config.motors_on {
+
+                if config.motors_on && total_time > 2.0 {
                     set_power(motor_1, m_1 as u32);
                     set_power(motor_2, m_2 as u32);
                     set_power(motor_3, m_3 as u32);
@@ -248,6 +284,7 @@ impl MotorManager {
         });
     }
 }
+
 
 // Cleanflight:
 //0.12029;
@@ -294,27 +331,35 @@ pub fn calibrate() {
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
 
     for motor in config.motors.clone() {
-        let handle = thread::spawn(move || {
-            pwm(motor, 0).unwrap();
-            sleep(Duration::from_secs(4));
-//            pwm(motor, 1500).unwrap();
-//            sleep(Duration::from_secs(1));
-            pwm(motor, 2000).unwrap();
-            sleep(Duration::from_secs(4));
-            pwm(motor, 1000).unwrap();
-            sleep(Duration::from_secs(4));
-            write(motor, OFF).unwrap();
-            sleep(Duration::from_secs(3));
-        });
+//        pwm(motor, 0).unwrap();
+    }
+    println!("{}", Yellow.paint("[Motors]: Raspberry Pi must be connected to an external power source. Unplug battery. Then press enter."));
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("Error");
 
-        handles.push(handle);
+    for motor in config.motors.clone() {
+//        pwm(motor, 2000).unwrap();
     }
 
-    for handle in handles {
-        handle.join().unwrap();
+    println!("{}", Green.paint("[Motors]: Plug in the battery now. Then press enter."));
+    input = String::new();
+    stdin().read_line(&mut input).expect("Error");
+
+    println!("{}", Yellow.paint("[Motors]: Wait until the rising tones finish. Then press enter."));
+    input = String::new();
+    stdin().read_line(&mut input).expect("Error");
+    for motor in config.motors.clone() {
+//        pwm(motor, 1000).unwrap();
     }
 
-    println!("[Motors]: Motors calibrated");
+    sleep(Duration::from_secs(4));
+
+    for motor in config.motors.clone() {
+        write(motor, OFF).unwrap();
+    }
+
+    println!("{}", Cyan.paint("[Motors]: Finished calibrating. You can now reconnect the Pi to the battery."));
+    sleep(Duration::from_secs(3));
     println!("[Motors]: Shutting down");
 
     for motor in config.motors.clone() {
@@ -323,8 +368,6 @@ pub fn calibrate() {
 
     terminate();
     thread::sleep(Duration::from_secs(2));
-
-
 }
 
 fn arm(motor: u32, starting_power: u32) -> thread::JoinHandle<()> {
@@ -333,7 +376,6 @@ fn arm(motor: u32, starting_power: u32) -> thread::JoinHandle<()> {
         sleep(Duration::from_secs(1));
         pwm(motor, 1000).unwrap();
         sleep(Duration::from_secs(2));
-
         pwm(motor, starting_power).unwrap();
     })
 }
