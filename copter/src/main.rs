@@ -27,7 +27,6 @@ mod config;
 use config::Config;
 
 use connection::Peer;
-
 use ansi_term::Colour::*;
 
 fn main() {
@@ -79,5 +78,3 @@ fn start() {
         }
     }
 }
-
-

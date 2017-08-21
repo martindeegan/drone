@@ -98,7 +98,6 @@ namespace drone_controller
 
     }
 
-
     public class MessageTypes
     {
         public const byte CONTROLLER_SERVER_PING = 0;

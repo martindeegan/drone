@@ -16,16 +16,11 @@ namespace drone_controller_windows
             Console.WriteLine("Right Stick: x={0}, y={1}, magnitude={2}", rx, ry, Math.Sqrt(rx * rx + ry * ry));
         }
 
-        public static void doSomething()
-        {
-            Console.WriteLine("XD");
-        }
-
         public static void Main(string[] args)
         {
-            //XBoxController controller = new XBoxController();
-            //XBoxController.Poll += Poll;
-            //XBoxController.b_A += doSomething;
+            XBoxController controller = new XBoxController();
+            XBoxController.b_Xg
+            XBoxController.Poll += Poll;
             Connection conn = new Connection();
             if(conn.ConnectToServer())
             {
