@@ -1,0 +1,48 @@
+
+[Hardware]
+# Motor 1 is front right. Others go clockwise around.
+motors = [20, 26, 19, 16]
+
+#Supported Sensors:
+# Thermo/Baro: BMP280, BMP180,
+# Gyro: LSM9DS0, L3GD20
+# Accel/Mag: LSM9DS0, LSM303D
+sensors = ["BMP280", "LSM9DS0"]
+
+[Motors]
+motors_on = false
+
+
+[Flight]
+kp = 1
+ki = 0
+kd = 0
+hover_power = 1100
+
+[Networking]
+server_address = "10.0.0.209:7070"
+debug_websocket_port = 27070
+
+{
+  "pkp": 1,
+  "pki": 0.0,
+  "pkd": 0.0,
+  "rkp": -1,
+  "rki": -0.0,
+  "rkd": -0.0,
+  "desired_angle": 0,
+  "motors": [20, 26, 19,16],
+  "motor_cutoff": 100.0,
+  "sensor_poll_time": 1,
+  "motors_on": false,
+  "integral_decay_time": 0.8,
+  "integral_bandwidth": 50.0,
+  "server_address": "10.0.0.209:7070",
+  "hover_power": 1380,
+  "max_motor_speed": 1600,
+  "debug_websocket_port": 27070,
+  "sea_level_pressure": 0.0,
+  "derivative_sampling": 0.001,
+  "integral_decay": 1.0,
+  "sensors": ["BMP280", "LSM9DS0"]
+}

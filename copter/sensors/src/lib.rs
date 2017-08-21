@@ -19,7 +19,7 @@ use time::PreciseTime;
 use i2cdev::core::*;
 use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
 
-use byteorder::{ByteOrder, LittleEndian};
+use byteorder::{ByteOrder, LittleEndian, BigEndian};
 use std::ops::{Add, Sub, Mul, Div};
 
 use f32::consts::PI;
@@ -41,7 +41,7 @@ pub struct OrientationData<T : Add + Sub> {
 }
 
 
-type AccelerometerData = OrientationData<i16>;
+type AccelerometerData = OrientationData<f32>;
 pub type GyroSensorData = OrientationData<DegreesPerSecond>;
 
 impl GyroSensorData {
@@ -150,10 +150,10 @@ fn init_accelerometer(mut device : &mut LinuxI2CDevice) {
 
 fn sample_accelerometer(mut device : &mut LinuxI2CDevice) -> AccelerometerData {
     let buf : Vec<u8> = device.smbus_read_i2c_block_data(0x80 | LSM303_OUT_X_L_A, 6).unwrap();
-    let x : i16 = LittleEndian::read_i16(&[buf[0], buf[1]]);
-    let y : i16 = LittleEndian::read_i16(&[buf[2], buf[3]]);
-    let z : i16 = LittleEndian::read_i16(&[buf[4], buf[5]]);
-    AccelerometerData {x: x, y: y, z: z}
+    let x : i16 = BigEndian::read_i16(&[buf[0], buf[1]]);
+    let y : i16 = BigEndian::read_i16(&[buf[2], buf[3]]);
+    let z : i16 = BigEndian::read_i16(&[buf[4], buf[5]]);
+    AccelerometerData {x: (x as f32) * 0.244, y: (y as f32) * 0.244, z: (z as f32) * 0.244}
 }
 
 // Maybe go lower?
@@ -181,9 +181,10 @@ pub fn start_sensors(sensor_poll_time: i64, sea_level_pressure: f32) -> Result<R
                 Ok(mut accelerometer) => {
 //                    let barometer_dev = LinuxI2CDevice::new("/dev/i2c-1", BMP180_I2C_ADDR).unwrap();
 //                    match BMP180BarometerThermometer::new(barometer_dev, BMP180PressureMode::BMP180Standard) {
-//                        Ok(mut barometer) => {
+//                        Ok(mut barometer) => {0.244
                             init_gyro(&mut gyroscope);
                             init_accelerometer(&mut accelerometer);
+
 
                             std::thread::spawn(move || {
                                 // Assume we start on a relatively flat surface.
@@ -216,13 +217,17 @@ pub fn start_sensors(sensor_poll_time: i64, sea_level_pressure: f32) -> Result<R
                                     sum = sum + change_in_degrees;
 
                                     let linear_acceleration = sample_accelerometer(&mut accelerometer);
+                                    println!("Linear Acceleration Level: x: {}, y: {}, z: {}, {}", linear_acceleration.x, linear_acceleration.y, linear_acceleration.z, (linear_acceleration.x * linear_acceleration.x + linear_acceleration.y * linear_acceleration.y + linear_acceleration.z * linear_acceleration.z));
 
-                                    let angle_acc_x = (linear_acceleration.y as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
-                                    let angle_acc_y = -1.0 * (linear_acceleration.x as f32).atan2(linear_acceleration.z as f32) * 180.0 / PI;
+
+                                    let angle_acc_x = (linear_acceleration.y).atan2(linear_acceleration.z) * 180.0 / PI;
+                                    let angle_acc_y = -1.0 * (linear_acceleration.x).atan2(linear_acceleration.z) * 180.0 / PI;
 
                                     let alpha = 0.02;
                                     // Comment this out to just try the gyro readings.
                                     sum = sum * (1.0 - alpha) + GyroSensorData { x: angle_acc_x, y: angle_acc_y, z: sum.z } * alpha;
+                                    sum.y = linear_acceleration.x;
+                                    sum.z = degrees_per_second.x;
 //                                    println!("x: {}, y: {}, z: {}", linear_acceleration.x, linear_acceleration.y, linear_acceleration.z);
 //                                    ------------Calculate Altitude----------------//
 //                                    let pressure = barometer.pressure_pa().unwrap();

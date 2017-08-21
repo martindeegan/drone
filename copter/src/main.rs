@@ -18,20 +18,28 @@ mod motor;
 use motor::MotorManager;
 
 mod connection;
-
+mod sensor_manager;
+mod flight;
+use sensor_manager::{start_sensors, calibrate_sensors};
 use config::Config;
 
-use connection::Peer;
 use ansi_term::Colour::*;
 
 fn main() {
-    println!("{}", Green.paint("[Input]: Press enter to start motors or type 'calibrate' to calibrate."));
+    println!("{}", Green.paint("[Input]: Press enter to start motors or type 'calibrate' to calibrate or 'calibrate sensors'."));
 
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
     match input.trim() {
         "calibrate" => {
             motor::calibrate();
+        },
+        "calibrate sensors" => {
+            println!("Place drone on a completely level surface. Then press enter.");
+            input = String::new();
+            stdin().read_line(&mut input).expect("Error");
+
+            calibrate_sensors();
         }
         _ => {
             start();
@@ -54,8 +62,8 @@ fn start() {
     println!("{}", Green.paint("[Input]: Press enter to self control."));
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
-
-    motor_manager.start_pid_loop(config, stream, debug_pipe.clone());
+    let (mut orientation_rx, mut location_rx) = start_sensors();
+    motor_manager.start_pid_loop(config, stream, orientation_rx, debug_pipe.clone());
 
     println!("{}", Green.paint("[Input]: Press enter to stop."));
 
@@ -68,3 +76,5 @@ fn start() {
         }
     }
 }
+
+

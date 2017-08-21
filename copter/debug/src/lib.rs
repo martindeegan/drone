@@ -82,7 +82,7 @@ fn start_port(server: &mut Server<NoTlsAcceptor>) -> Result<Client<TcpStream>,()
 pub fn init_debug_port(port : i32) -> Sender<Signal> {
     let (tx, rx): (Sender<Signal>, Receiver<Signal>) = channel();
 
-    thread::spawn(move || {
+    thread::Builder::new().name("Debug Port".to_string()).spawn(move || {
         let mut server = Server::bind(format!("0.0.0.0:{}", port)).unwrap();
         let mut client: Client<TcpStream> = start_port(&mut server).unwrap();
 

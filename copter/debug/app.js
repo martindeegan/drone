@@ -22,7 +22,7 @@ class Line {
         key.style.backgroundColor = color;
         key.style.color = "White";
         key.style.display = "block";
-        key.style.width = "100px";
+        key.style.width = "500px";
         insertAfter(key, canvas);
     }
 
@@ -35,7 +35,7 @@ class Line {
     }
 
     addData(time, power) {
-
+        power = -power;
         if (!this.last_pt) {
             this.last_pt = {
                 time: time,
@@ -136,7 +136,7 @@ function checkData() {
 }
 
 function reconnect() {
-    var socket = new WebSocket("ws://192.168.1.11:27070", "drone-debug");
+    var socket = new WebSocket("ws://192.168.1.17:27070", "drone-debug");
     socket.onerror = function() {
         setStatus("Connection closed... wating for connection.");
         setTimeout(reconnect, 500);
