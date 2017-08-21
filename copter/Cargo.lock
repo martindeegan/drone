@@ -3,14 +3,18 @@ name = "drone"
 version = "0.1.0"
 dependencies = [
  "ansi_term 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "config 0.1.0",
  "debug_server 0.1.0",
+ "i2cdev-bmp180 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2cdev-bmp280 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2cdev-l3gd20 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2cdev-lsm303d 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2cdev-lsm9ds0 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2csensors 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "protos 0.1.0",
  "rust-pigpio 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sensors 0.1.0",
- "serde 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_derive 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "serde_json 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.37 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -81,6 +85,15 @@ version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "config"
+version = "0.1.0"
+dependencies = [
+ "serde 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "core-foundation"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -111,6 +124,9 @@ name = "debug_server"
 version = "0.1.0"
 dependencies = [
  "openssl 0.9.13 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_json 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "websocket 0.20.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -182,6 +198,61 @@ dependencies = [
  "nix 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "skeptic 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "i2cdev-bmp180"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "byteorder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2cdev 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2csensors 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "i2cdev-bmp280"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "byteorder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2cdev 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2csensors 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "i2cdev-l3gd20"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "byteorder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2cdev 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2csensors 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "i2cdev-lsm303d"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "byteorder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2cdev 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2csensors 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "i2cdev-lsm9ds0"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "byteorder 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2cdev 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "i2csensors 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "i2csensors"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "idna"
@@ -755,6 +826,12 @@ dependencies = [
 "checksum httparse 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "af2f2dd97457e8fb1ae7c5a420db346af389926e36f43768b96f101546b04a07"
 "checksum hyper 0.10.12 (registry+https://github.com/rust-lang/crates.io-index)" = "0f01e4a20f5dfa5278d7762b7bdb7cab96e24378b9eca3889fbd4b5e94dc7063"
 "checksum i2cdev 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2d202d2e722bc94a27fe8510f171e092fd5f588069ea162feaa2f5cbe286e8fc"
+"checksum i2cdev-bmp180 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "dfe1b356f7906203d8ea51188d270efd4f9034e62dd43cf614ef5bca4f3532f4"
+"checksum i2cdev-bmp280 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4df9adcfaf4168a7915298450253e69024d5334133ef3d5f689521e247935d36"
+"checksum i2cdev-l3gd20 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "130380eb750dc3b14237613dabca555f7ccdb9ace32c9b18987532c571a7c205"
+"checksum i2cdev-lsm303d 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1f1ea5353b74c7379dd4d33254b7122e67533d94563efc0ec4d2b4c8aff97acf"
+"checksum i2cdev-lsm9ds0 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "624b66a4a83d2d4b89307eaf39e31826e44197bf01b538e38cc44d221d2635fb"
+"checksum i2csensors 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ce2f2a37bda37397d5011c17debafb227c91024b76502a40b0c711769365751d"
 "checksum idna 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "2233d4940b1f19f0418c158509cd7396b8d70a5db5705ce410914dc8fa603b37"
 "checksum iovec 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "29d062ee61fccdf25be172e70f34c9f6efc597e1fb8f6526e8437b2046ab26be"
 "checksum itoa 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "eb2f404fbc66fd9aac13e998248505e7ecb2ad8e44ab6388684c5fb11c6c251c"

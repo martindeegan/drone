@@ -3,14 +3,10 @@ extern crate time;
 extern crate rust_pigpio;
 extern crate sensors;
 
-extern crate serde;
-extern crate serde_json;
-#[macro_use]
-extern crate serde_derive;
-
 extern crate debug_server;
 extern crate protobuf;
 extern crate protos;
+extern crate config;
 
 extern crate ansi_term;
 
@@ -23,7 +19,6 @@ use motor::MotorManager;
 
 mod connection;
 
-mod config;
 use config::Config;
 
 use connection::Peer;
@@ -54,18 +49,13 @@ fn start() {
         motor_manager.new_motor(motor);
     }
 
-    let mut peer = Peer::new();
+    let stream = connection::connect_via_server(debug_pipe.clone());
 
     println!("{}", Green.paint("[Input]: Press enter to self control."));
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
 
-    motor_manager.start_pid_loop(config, &mut peer, debug_pipe.clone());
-    let clone = debug_pipe.clone();
-    thread::spawn(move || {
-        peer.connect_to_server();
-        peer.start_connection_loop(clone);
-    });
+    motor_manager.start_pid_loop(config, stream, debug_pipe.clone());
 
     println!("{}", Green.paint("[Input]: Press enter to stop."));
 

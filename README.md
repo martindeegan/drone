@@ -2,8 +2,13 @@
 This project is a pure rust implementation of a full drone project.
 
 ## Features
-1) PID loop for drone simulation
+1) PID loop for drone stabilization
 2) 
+
+## Todo
+- [ ] Mixer. Combine motor speeds according to motor placement and center of mass.
+- [ ] Move sensors to [i2cdev-sensors](https://github.com/Kixunil/i2cdev-sensors). Create a sensor manager that can be changed in config.json 
+- [ ] Catch and handle all matches.
 
 ## Teststed Hardware
 ### Micro Controller

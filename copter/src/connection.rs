@@ -28,23 +28,31 @@ const LOCAL_ADDR: &str = "0.0.0.0:27136";
 
 const INPUT_ID: u8 = 1;
 
-pub struct Peer {
+pub type InputStream = Receiver<ControllerInput>;
+
+struct Peer {
     sock: UdpSocket,
     input_sub: Sender<ControllerInput>,
 }
 
-impl Peer {
-    pub fn new() -> Peer {
-        #[allow(dead_code)]
-        let (tx, _) = channel();
+pub fn connect_via_server(debug_pipe : Sender<debug_server::Signal>) -> InputStream {
+    let (sender, receiver) = channel();
 
-        Peer {
+    thread::spawn(|| {
+        let controller = Peer {
             sock: UdpSocket::bind(LOCAL_ADDR).unwrap(),
-            input_sub: tx,
-        }
-    }
+            input_sub: sender,
+        };
 
-    pub fn connect_to_server(&self) {
+        controller.punch_nat();
+        controller.connection_loop(debug_pipe);
+    });
+    receiver
+}
+
+impl Peer {
+    // Connect using a middleman server. Allows the connection to reach peers behind NAT.
+    fn punch_nat(&self) {
         let config = Config::new();
         let server_addr = config.server_address;
         println!("[Connection]: Connecting to server");
@@ -55,6 +63,7 @@ impl Peer {
         let mut response = String::from("                                                             ",);
         unsafe { self.sock.recv(response.as_mut_vec().borrow_mut()).unwrap() };
         println!("[Connection]: Got response: {}", response.trim());
+        println!("[Connection]: Waiting for P2P controller connection.");
 
         response = String::from("                                                             ");
         unsafe { self.sock.recv(response.as_mut_vec().borrow_mut()).unwrap() };
@@ -111,16 +120,9 @@ impl Peer {
         }
 
         println!("[Connection]: Successfully connected to controller.")
-
     }
 
-    pub fn subscribe_input(&mut self) -> Receiver<ControllerInput> {
-        let (tx, rx): (Sender<ControllerInput>, Receiver<ControllerInput>) = channel();
-        self.input_sub = tx;
-        rx
-    }
-
-    pub fn start_connection_loop(&self, debug_pipe : Sender<debug_server::Signal>) {
+    fn connection_loop(&self, debug_pipe : Sender<debug_server::Signal>) {
         let socket = self.sock.try_clone().unwrap();
         let input_subscriber = self.input_sub.clone();
         thread::spawn(move ||
@@ -148,7 +150,7 @@ impl Peer {
                             }
                         }
                     }
-                    _ => {continue;}
+                    _ => {}
                 }
             });
     }

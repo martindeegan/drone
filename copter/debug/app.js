@@ -6,7 +6,7 @@ function insertAfter(newNode, referenceNode) {
 }
 
 class Line {
-    constructor(canvas_id, color, name) {
+    constructor(canvas_id, color, name, width) {
         var canvas = document.getElementById(canvas_id);
         var ctx = canvas.getContext('2d');
 
@@ -15,6 +15,7 @@ class Line {
         this.last_pt = null;
         this.start_time = 0;
         this.color = color;
+        this.width;
 
         let key = document.createElement("div");
         key.innerText = name;
@@ -47,7 +48,7 @@ class Line {
         ctx.moveTo(this.domain(this.last_pt.time), this.range(this.last_pt.power));
         ctx.lineTo(this.domain(time), this.range(power));
         ctx.strokeStyle = this.color;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = this.width;
         ctx.stroke();
         this.last_pt = {
             time: time,
@@ -68,8 +69,6 @@ class Line {
         for (var i = -RANGE; i < RANGE; i += 10) {
             ctx.beginPath();
             ctx.moveTo(0, this.range(i));
-            console.log("this.canvas.width: " + this.canvas.width);
-            console.log("this.range(i): " + this.range(i));
             ctx.lineTo(this.canvas.width, this.range(i));
             ctx.strokeStyle = '#AAA';
             ctx.stroke();
@@ -86,25 +85,39 @@ class Line {
 
 var canvas = document.getElementById("x-axis");
 canvas.width = document.body.clientWidth;
+var canvasy = document.getElementById("y-axis");
+canvasy.width = document.body.clientWidth;
 
-let totalline = new Line("x-axis", "red", "total");
-let pline = new Line("x-axis", "blue", "P");
-let iline = new Line("x-axis", "green", "I");
-let dline = new Line("x-axis", "orange", "D");
+let totalline_x = new Line("x-axis", "red", "total", 3);
+let pline_x = new Line("x-axis", "blue", "P", 1);
+let iline_x = new Line("x-axis", "green", "I", 1);
+let dline_x = new Line("x-axis", "orange", "D", 1);
 
-pline.clear();
+let totalline_y = new Line("y-axis", "red", "total", 3);
+let pline_y = new Line("y-axis", "blue", "P", 1);
+let iline_y = new Line("y-axis", "green", "I", 1);
+let dline_y = new Line("y-axis", "orange", "D", 1);
 
-function addData(t, total, p, i, d) {
-    pline.addData(t, p);
-    iline.addData(t, i);
-    dline.addData(t, d);
-    totalline.addData(t, total);
-    gotData = true;
-}
+pline_x.clear();
+pline_y.clear();
 
 var delegate = function(event) {
-    var components = event.data.split(",");
-    addData(parseInt(components[0]), parseFloat(components[1]), parseFloat(components[2]), parseFloat(components[3]), parseFloat(components[4]))
+    gotData = true;
+    let data = JSON.parse(event.data);
+    let time = data.time;
+    
+    pline_x.addData(time, data.pidaxes.p);
+    pline_y.addData(time, data.pidaxes.p_y);
+    iline_x.addData(time, data.pidaxes.i);
+    iline_y.addData(time, data.pidaxes.i_y);
+    dline_x.addData(time, data.pidaxes.d);
+    dline_y.addData(time, data.pidaxes.d_y);
+
+    totalline_x.addData(time, data.pidaxes.power);
+    totalline_y.addData(time, data.pidaxes.power_y);
+
+    console.log(data.power);
+
 };
 
 function setStatus(msg) {
@@ -123,7 +136,7 @@ function checkData() {
 }
 
 function reconnect() {
-    var socket = new WebSocket("ws://10.0.0.213:27070", "drone-debug");
+    var socket = new WebSocket("ws://192.168.1.11:27070", "drone-debug");
     socket.onerror = function() {
         setStatus("Connection closed... wating for connection.");
         setTimeout(reconnect, 500);
@@ -135,10 +148,8 @@ function reconnect() {
     }
     socket.onopen = function() {
         setStatus("Connected. Streaming data.");
-        pline.clear();
-        dline.clear();
-        totalline.clear();
-        iline.clear();
+        pline_x.clear();
+        pline_y.clear();
         setTimeout(checkData, 1000);
     }
     socket.onmessage = delegate;

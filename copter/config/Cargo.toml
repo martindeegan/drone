@@ -1,11 +1,9 @@
 [package]
-name = "debug_server"
+name = "config"
 version = "0.1.0"
 authors = ["Thomas Deegan <tadeegan@gmail.com>"]
 
 [dependencies]
-openssl = "0.9.13"
-websocket = "0.20.1"
 serde_json = "1.0.2"
 serde = "1.0.8"
 serde_derive = "1.0.8"
