@@ -9,19 +9,17 @@ extern crate ansi_term;
 use config::Config;
 
 mod hardware;
-mod flight;
+// mod flight;
 mod connection;
 
-use flight::{FlightMode,start_flight};
+// use flight::{FlightMode,start_flight};
 use hardware::motors::MotorManager;
 
 use std::io::stdin;
 use std::string::String;
 use std::thread;
 
-mod connection;
-mod flight;
-use sensor_manager::{start_sensors, calibrate_sensors};
+// use sensor_manager::{start_sensors, calibrate_sensors};
 
 use ansi_term::Colour::*;
 
@@ -32,14 +30,14 @@ fn main() {
     stdin().read_line(&mut input).expect("Error");
     match input.trim() {
         "calibrate" => {
-            motor::calibrate();
+            hardware::motors::calibrate();
         },
         "calibrate sensors" => {
             println!("Place drone on a completely level surface. Then press enter.");
             input = String::new();
             stdin().read_line(&mut input).expect("Error");
 
-            calibrate_sensors();
+            // calibrate_sensors();
         }
         _ => {
             start();
@@ -49,7 +47,8 @@ fn main() {
 }
 
 fn start() {
-    // let config = Config::new();
+    let motor_manager = MotorManager::new();
+
     //
     // let debug_pipe = debug_server::init_debug_port(config.debug_websocket_port);
     // let mut motor_manager = MotorManager::new();

@@ -114,3 +114,73 @@ pub fn init_debug_port(port : i32) -> Sender<Signal> {
     });
     tx.clone()
 }
+
+// Moved
+
+//
+// fn stat(values: [f32;40]) -> (f32, f32) {
+//     let mut average = 0.0;
+//     for i in 0..40 {
+//         average += values[i];
+//     }
+//     average /= 40.0;
+//
+//     let mut std = 0.0;
+//     for i in 0..40 {
+//         std += (values[i] - average).powi(2);
+//     }
+//     std /= 40.0;
+//
+//     (average, std)
+// }
+//
+// struct Log {
+//     pub t: i64,
+//     pub m1: u32,
+//     pub m2: u32,
+//     pub m3: u32,
+//     pub m4: u32,
+//     pub x_ang: f32,
+//     pub y_ang: f32,
+//     pub z_ang: f32,
+//     pub x_p: f32,
+//     pub x_i: f32,
+//     pub x_d: f32,
+//     pub y_p: f32,
+//     pub y_i: f32,
+//     pub y_d: f32
+// }
+//
+// struct Logger {}
+//
+// impl Logger {
+//     pub fn new(on: bool) -> Sender<Log> {
+//         let (tx,rx): (Sender<Log>,Receiver<Log>) = channel();
+//         if on {
+//             thread::spawn(move || {
+//                 let log_file_name = format!("logs/{}_{}_{}_{}_{}_{}_data.csv",
+//                                             time::now().tm_year, time::now().tm_mon, time::now().tm_yday,
+//                                             time::now().tm_hour, time::now().tm_min, time::now().tm_sec);
+//                 let mut log_file = OpenOptions::new()
+//                     .read(true)
+//                     .write(true)
+//                     .create(true)
+//                     .open(log_file_name).expect("Couldn't open or create new file");
+//                 loop {
+//                     match rx.try_recv() {
+//                         Ok(log) => {
+//                             let out = format!("{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n", log.t,
+//                                               log.m1, log.m2, log.m3, log.m4,
+//                                               format!("{:.*}", 2, log.x_ang), format!("{:.*}", 2, log.y_ang), format!("{:.*}", 2, log.z_ang),
+//                                               format!("{:.*}", 2, log.x_p), format!("{:.*}", 2, log.x_i), format!("{:.*}", 2, log.x_d),
+//                                               format!("{:.*}", 2, log.y_p), format!("{:.*}", 2, log.y_i), format!("{:.*}", 2, log.y_d));
+//                             log_file.write_all(out.as_bytes());
+//                         },
+//                         Err(e) => {}
+//                     }
+//                 }
+//             });
+//         }
+//         tx
+//     }
+// }
