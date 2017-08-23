@@ -60,6 +60,8 @@ fn start() {
         }
         thread::sleep_ms(10);
     }
+
+    let ()
     // let motor_manager = MotorManager::new();
 
     //

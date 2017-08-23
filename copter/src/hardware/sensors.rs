@@ -1,10 +1,11 @@
-//use self::i2cdev_bmp180::*;
+use super::i2cdev_bmp180::*;
 use super::i2cdev_bmp280::*;
-//use super::i2cdev_l3gd20::*;
-//use super::i2cdev_lsm303d::*;
+use super::i2cdev_l3gd20::*;
+use super::i2cdev_lsm303d::*;
 use super::i2cdev_lsm9ds0::*;
 use super::i2cdev::linux::LinuxI2CDevice;
 use super::i2cdev::core::I2CDevice;
+use super::i2csensors::*;
 
 fn get_sensors(poll_rate: i64) -> (Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
                      Rc<RefCell<Thermometer<Error = LinuxI2CError>>>,
@@ -36,21 +37,25 @@ fn get_sensors(poll_rate: i64) -> (Rc<RefCell<Barometer<Error = LinuxI2CError>>>
     for sensor in config.sensors {
         match sensor.as_ref() {
             "BMP180" => {
-
+                let bmp180 = Rc::new(RefCell::new(get_bmp180(config.sensor_sample_frequency)));
+                barometer = Some(bmp280.clone());
+                thermometer = Some(bmp280.clone());
             },
             "BMP280" => {
-                let bmp280 = Rc::new(RefCell::new(get_bmp280(poll_rate)));
+                let bmp280 = Rc::new(RefCell::new(get_bmp280(config.sensor_sample_frequency)));
                 barometer = Some(bmp280.clone());
                 thermometer = Some(bmp280.clone());
             },
             "L3GD20" => {
-
-            },
+                let l3gd20 = Rc::new(RefCell::new(get_l3gd20(config.sensor_sample_frequency)));
+                gyroscope = Some(l3gd20.clone());
             "LSM303D" => {
-
+                let lsm303d = Rc::new(RefCell::new(get_lsm303d(config.sensor_sample_frequency)));
+                accelerometer = Some(lsm303d.clone());
+                magnetometer = Some(lsm303d.clone());
             },
             "LSM9DS0" => {
-                let lsm9ds0 = Rc::new(RefCell::new(get_lsm9ds0(poll_rate)));
+                let lsm9ds0 = Rc::new(RefCell::new(get_lsm9ds0(config.sensor_sample_frequency)));
                 gyroscope = Some(lsm9ds0.clone());
                 accelerometer = Some(lsm9ds0.clone());
                 magnetometer = Some(lsm9ds0.clone());
@@ -100,20 +105,12 @@ fn get_sensors(poll_rate: i64) -> (Rc<RefCell<Barometer<Error = LinuxI2CError>>>
 }
 
 pub fn start_sensors() -> (Receiver<InertialMeasurement>, Receiver<Location>) {
-    //Eventually GPS
-
     let config = Config::new();
     let sensor_poll_rate = config.sensor_sample_frequency;
     let sensor_poll_delay = (1000000000 / sensor_poll_rate) as u32;
 
     let (orientation_transimitter, orientation_receiver): (Sender<InertialMeasurement>, Receiver<InertialMeasurement>) = channel();
     let (location_transmitter, location_receiver): (Sender<Location>, Receiver<Location>) = channel();
-
-    let mut gps = gps::GPS::new();
-    {
-        gps.get_location();
-        thread::sleep_ms(50);
-    }
 
     thread::spawn(move || {
         let loop_duration = _Duration::new(0, sensor_poll_delay);
@@ -270,7 +267,11 @@ pub fn calibrate_sensors() {
 
 //-----------------------Specific Sensors-------------------------//
 
-pub fn get_bmp280(poll_rate: i64) -> BMP280<LinuxI2CDevice> {
+fn get_bmp180(frequency: u32) -> BMP180<LinuxI2CDevice> {
+    // Left for someone who owns a bmp180
+}
+
+fn get_bmp280(frequency: u32) -> BMP280<LinuxI2CDevice> {
     let settings = BMP280Settings {
         compensation: BMP280CompensationAlgorithm::B64,
         t_sb: BMP280Timing::ms0_5,
@@ -282,16 +283,100 @@ pub fn get_bmp280(poll_rate: i64) -> BMP280<LinuxI2CDevice> {
 
     let baro = get_linux_bmp280_i2c_device().unwrap();
     match BMP280::new(baro, settings) {
-        Ok(bmp280) => {
-            return bmp280;
-        },
+        Ok(bmp280) => bmp280,
         Err(e) => {
             panic!("Couldn't start bmp280");
         }
     }
 }
 
-pub fn get_lsm9ds0(poll_rate: i64) -> LSM9DS0<LinuxI2CDevice> {
+fn get_l3gd20(frequency: u32) -> L3GD20<LinuxI2CDevice> {
+    let mut gyro_settings = L3GD20GyroscopeSettings {
+        DR: L3GD20GyroscopeDataRate::Hz190,
+        BW: L3GD20GyroscopeBandwidth::BW1,
+        power_mode: L3GD20PowerMode::Normal,
+        zen: true,
+        yen: true,
+        xen: true,
+        sensitivity: L3GD20GyroscopeFS::dps500,
+        continuous_update: true,
+        high_pass_filter_enabled: true,
+        high_pass_filter_mode: Some(L3GD20GyroscopeHighPassFilterMode::NormalMode),
+        high_pass_filter_configuration: Some(L3GD20HighPassFilterCutOffConfig::HPCF_3)
+    }
+
+    if frequency <= 95 {
+        gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz95;
+    }
+    else if frequency <= 190 {
+        gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz190;
+        gyro_settings.BW = LSM9DS0GyroscopeBandwidth::BW2;
+    }
+    else if frequency <= 380 {
+        gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz380;
+        gyro_settings.BW = LSM9DS0GyroscopeBandwidth::BW3;
+    }
+    else {
+        gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz760;
+        gyro_settings.BW = LSM9DS0GyroscopeBandwidth::BW4;
+    }
+
+    let gyro_device = get_linux_l3gd20_i2c_device().unwrap();
+    match L3GD20::new(gyro_device, gyro_settings) {
+        Ok(l3gd20) => l3gd20,
+        Err(e) => {
+            panic!("Couldn't start l3gd20");
+        }
+    }
+}
+
+fn get_lsm303d(frequency: u32) -> LSM303D<LinuxI2CDevice> {
+    let mut accel_mag_settings = LSM303DSettings {
+        continuous_update: true,
+        accelerometer_data_rate: LSM303DAccelerometerUpdateRate::Hz200,
+        accelerometer_anti_alias_filter_bandwidth: LSM303DAccelerometerFilterBandwidth::Hz50,
+        azen: true,
+        ayen: true,
+        axen: true,
+        accelerometer_sensitivity: LSM303DAccelerometerFS::g4,
+        magnetometer_resolution: LSM303DMagnetometerResolution::Low,
+        magnetometer_data_rate: LSM303DMagnetometerUpdateRate::Hz100,
+        magnetometer_low_power_mode: false,
+        magnetometer_mode: LSM303DMagnetometerMode::ContinuousConversion,
+        magnetometer_sensitivity: LSM303DMagnetometerFS::gauss2
+    }
+
+    if frequency <= 100 {
+        accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz100;
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz50;
+    }
+    else if frequency <= 200 {
+        accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz200;
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz50;
+    }
+    else if frequency <= 400 {
+        accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz400;
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz194;
+    }
+    else if frequency <= 800 {
+        accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz800;
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz194;
+    }
+    else {
+        accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz1600;
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz773;
+    }
+
+    let accel_mag_device = get_linux_lsm303d_i2c_device().unwrap();
+    match LSM303D::new(accel_mag_device, accel_mag_settings) {
+        Ok(lsm303d) => lsm303d,
+        Err(e) => {
+            panic!("Couldn't start lsm303d");
+        }
+    }
+}
+
+fn get_lsm9ds0(frequency: u32) -> LSM9DS0<LinuxI2CDevice> {
 
     let mut gyro_settings = LSM9DS0GyroscopeSettings {
         DR: LSM9DS0GyroscopeDataRate::Hz190,
@@ -307,14 +392,14 @@ pub fn get_lsm9ds0(poll_rate: i64) -> LSM9DS0<LinuxI2CDevice> {
         high_pass_filter_configuration: Some(LSM9DS0HighPassFilterCutOffConfig::HPCF_3)
     };
 
-    if poll_rate <= 95 {
+    if frequency <= 95 {
         gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz95;
     }
-    else if poll_rate <= 190 {
+    else if frequency <= 190 {
         gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz190;
         gyro_settings.BW = LSM9DS0GyroscopeBandwidth::BW2;
     }
-    else if poll_rate <= 380 {
+    else if frequency <= 380 {
         gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz380;
         gyro_settings.BW = LSM9DS0GyroscopeBandwidth::BW3;
     }
@@ -337,12 +422,32 @@ pub fn get_lsm9ds0(poll_rate: i64) -> LSM9DS0<LinuxI2CDevice> {
         magnetometer_mode: LSM9DS0MagnetometerMode::ContinuousConversion,
         magnetometer_sensitivity: LSM9DS0MagnetometerFS::gauss2
     };
+
+    if frequency <= 100 {
+        accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz100;
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz50;
+    }
+    else if frequency <= 200 {
+        accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz200;
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz50;
+    }
+    else if frequency <= 400 {
+        accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz400;
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz194;
+    }
+    else if frequency <= 800 {
+        accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz800;
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz194;
+    }
+    else {
+        accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz1600;
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz773;
+    }
+
     let (gyro, accel) = get_default_lsm9ds0_linux_i2c_devices().unwrap();
 
     match LSM9DS0::new(accel, gyro, gyro_settings, accel_mag_settings) {
-        Ok(lsm9ds0) => {
-            let lsm9ds0_ref = return lsm9ds0;
-        },
+        Ok(lsm9ds0) => lsm9ds0,
         Err(e) => {
             panic!("Couldn't initialize LSM9DS0");
         }
