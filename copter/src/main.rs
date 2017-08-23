@@ -12,8 +12,10 @@ mod hardware;
 // mod flight;
 mod connection;
 
+use hardware::gps::get_gps;
+
 // use flight::{FlightMode,start_flight};
-use hardware::motors::MotorManager;
+// use hardware::motors::MotorManager;
 
 use std::io::stdin;
 use std::string::String;
@@ -47,7 +49,18 @@ fn main() {
 }
 
 fn start() {
-    let motor_manager = MotorManager::new();
+
+    let mut gps = get_gps();
+    for i in 0..2000 {
+        match gps.try_recv() {
+            Ok(data) => {
+                println!("{:?}", data);
+            },
+            Err(e) => {}
+        }
+        thread::sleep_ms(10);
+    }
+    // let motor_manager = MotorManager::new();
 
     //
     // let debug_pipe = debug_server::init_debug_port(config.debug_websocket_port);
