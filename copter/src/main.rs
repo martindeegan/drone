@@ -13,6 +13,7 @@ mod hardware;
 mod connection;
 
 use hardware::gps::get_gps;
+use hardware::sensors::*;
 
 // use flight::{FlightMode,start_flight};
 // use hardware::motors::MotorManager;
@@ -50,18 +51,19 @@ fn main() {
 
 fn start() {
 
-    let mut gps = get_gps();
-    for i in 0..2000 {
-        match gps.try_recv() {
-            Ok(data) => {
-                println!("{:?}", data);
-            },
-            Err(e) => {}
-        }
-        thread::sleep_ms(10);
+    let (gyro_rx, accel_rx, mag_rx, thermo_rx, baro_rx) = start_sensors();
+    loop {
+
+        let angular_rate = gyro_rx.recv().unwrap();
+        let acceleration = accel_rx.try_recv().unwrap();
+
+        println!("Omega: {:?}", angular_rate);
+        println!("Acceleration: {:?}", acceleration);
+        println!("Temp: {}, Press: {}", thermo_rx.try_recv().unwrap(), baro_rx.try_recv().unwrap());
+
+        // thread::sleep_ms(10);
     }
 
-    let ()
     // let motor_manager = MotorManager::new();
 
     //
