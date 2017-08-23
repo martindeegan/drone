@@ -1,75 +1,10 @@
-extern crate i2csensors;
-//extern crate i2cdev_bmp180;
-extern crate i2cdev_bmp280;
-//extern crate i2cdev_l3gd20;
-//extern crate i2cdev_lsm303d;
-extern crate i2cdev_lsm9ds0;
-extern crate i2cdev;
-
-use config::Config;
-use config::SensorCalibrations;
-
-use std::io::stdin;
-use std::cell::{RefCell, RefMut};
-use std::rc::Rc;
-use std::marker::Sync;
-use std::sync::mpsc::channel;
-use std::sync::mpsc::{Sender, Receiver};
-use std::thread;
-use std::error::Error;
-use std::time::Duration as _Duration;
-use time::{PreciseTime, Duration};
-
-use self::i2csensors::{Barometer, Thermometer, Gyroscope, Accelerometer, Magnetometer, Vec3};
-use self::i2cdev::linux::LinuxI2CError;
-mod sensors;
-use self::sensors::*;
-
-const LOCATION_SAMPLING_RATE_MS: f32 = 50.0;
-
-const RADIAN_DEGREES: f32 = 180.0 / 3.14159265;
-
-pub type MultiSensorData = Vec3;
-
-#[derive(Copy,Clone)]
-pub struct InertialMeasurement {
-    pub angles: MultiSensorData,
-    pub rotation_rate: MultiSensorData,
-    pub altitude: f32
-}
-
-#[derive(Copy,Clone)]
-pub struct Location {
-    pub latitude: f32,
-    pub longitude: f32,
-    pub altitude: f32
-}
-
-//pub struct SensorManager {
-//
-//}
-//
-//impl SensorManager {
-//    pub fn new() -> SensorManager {
-//        SensorManager{}
-//    }
-//
-//    pub fn start_sensor_manager() -> (Receiver<MultiSensorData>, Receiver<MultiSensorData>, Receiver<MultiSensorData>) {
-//        let config = Config::new();
-//        let sensor_poll_rate = config.sensor_poll_rate;
-//        let sensor_poll_delay = (1000000.0 / (sensor_poll_rate as f32)) as u32;
-//
-//        let (gyroscope_transmitter, rx_g): (Sender<MultiSensorData>, Receiver<MultiSensorData>) = channel();
-//        let (accelerometer_transmitter, rx_a): (Sender<MultiSensorData>, Receiver<MultiSensorData>) = channel();
-//        let (magnetometer_transmitter, rx_m): (Sender<MultiSensorData>, Receiver<MultiSensorData>) = channel();
-//
-//        thread::Builder::new().name("Sensor Manager Loop".to_string()).spawn(move || {
-//            let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) = get_sensors(sensor_poll_rate / 4);
-//
-//        });
-//
-//        (rx_g, rx_a, rx_m)
-//}
+//use self::i2cdev_bmp180::*;
+use super::i2cdev_bmp280::*;
+//use super::i2cdev_l3gd20::*;
+//use super::i2cdev_lsm303d::*;
+use super::i2cdev_lsm9ds0::*;
+use super::i2cdev::linux::LinuxI2CDevice;
+use super::i2cdev::core::I2CDevice;
 
 fn get_sensors(poll_rate: i64) -> (Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
                      Rc<RefCell<Thermometer<Error = LinuxI2CError>>>,
@@ -83,6 +18,20 @@ fn get_sensors(poll_rate: i64) -> (Rc<RefCell<Barometer<Error = LinuxI2CError>>>
     let mut gyroscope: Option<Rc<RefCell<Gyroscope<Error = LinuxI2CError>>>> = None;
     let mut accelerometer: Option<Rc<RefCell<Accelerometer<Error = LinuxI2CError>>>> = None;
     let mut magnetometer: Option<Rc<RefCell<Magnetometer<Error = LinuxI2CError>>>> = None;
+
+    fn read_calibration_values() -> (MultiSensorData, MultiSensorData) {
+        let calibs = SensorCalibrations::new();
+        (MultiSensorData {
+            x: calibs.gyro_x,
+            y: calibs.gyro_y,
+            z: calibs.gyro_z,
+        },
+        MultiSensorData {
+            x: calibs.accel_x,
+            y: calibs.accel_y,
+            z: calibs.accel_z
+        })
+    }
 
     for sensor in config.sensors {
         match sensor.as_ref() {
@@ -150,38 +99,33 @@ fn get_sensors(poll_rate: i64) -> (Rc<RefCell<Barometer<Error = LinuxI2CError>>>
     (barometer.unwrap(), thermometer.unwrap(), gyroscope.unwrap(), accelerometer.unwrap(), magnetometer.unwrap())
 }
 
-fn read_calibration_values() -> (MultiSensorData, MultiSensorData) {
-    let calibs = SensorCalibrations::new();
-    (MultiSensorData {
-        x: calibs.gyro_x,
-        y: calibs.gyro_y,
-        z: calibs.gyro_z,
-    },
-    MultiSensorData {
-        x: calibs.accel_x,
-        y: calibs.accel_y,
-        z: calibs.accel_z
-    })
-}
-
-//Returns Orientation Receiver and a Location Receiver
 pub fn start_sensors() -> (Receiver<InertialMeasurement>, Receiver<Location>) {
     //Eventually GPS
 
     let config = Config::new();
     let sensor_poll_rate = config.sensor_sample_frequency;
     let sensor_poll_delay = (1000000000 / sensor_poll_rate) as u32;
-    let loop_duration = _Duration::new(0, sensor_poll_delay);
 
     let (orientation_transimitter, orientation_receiver): (Sender<InertialMeasurement>, Receiver<InertialMeasurement>) = channel();
     let (location_transmitter, location_receiver): (Sender<Location>, Receiver<Location>) = channel();
 
-    thread::Builder::new().name("Sensor Loop".to_string()).spawn(move || {
-        let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) = get_sensors(sensor_poll_rate as i64 / 4);
-        //MultiSensorData { x: 1.7352998, y: 0.38937503, z: -9.603826 }
-        let calibs = SensorCalibrations::new();
-        let (gyro_calib, accel_calib) = (Vec3 { x: calibs.gyro_x, y: calibs.gyro_y, z: calibs.gyro_z }, Vec3 { x: calibs.accel_x, y: calibs.accel_y, z: calibs.accel_z });
+    let mut gps = gps::GPS::new();
+    {
+        gps.get_location();
+        thread::sleep_ms(50);
+    }
 
+    thread::spawn(move || {
+        let loop_duration = _Duration::new(0, sensor_poll_delay);
+
+        let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) = get_sensors(sensor_poll_rate as i64 / 4);
+
+        let calibs = SensorCalibrations::new();
+
+        // let (gyro_calib, accel_calib) = (Vec3::zeros(), Vec3::zeros());
+        let (gyro_calib, accel_calib) = (Vec3 { x: calibs.gyro_x, y: calibs.gyro_y, z: calibs.gyro_z }, Vec3 { x: calibs.accel_x, y: calibs.accel_y, z: calibs.accel_z });
+        println!("g_calib: {:?}", gyro_calib);
+        println!("a_calib: {:?}", accel_calib);
         let mut last_time = PreciseTime::now();
         let mut current_euler_angles = MultiSensorData::zeros();
         let mut bearing_calib = 0.0;
@@ -196,7 +140,7 @@ pub fn start_sensors() -> (Receiver<InertialMeasurement>, Receiver<Location>) {
                     } else if magnetometer_output.y < 0.0 {
                         bearing_calib += 270.0 - (magnetometer_output.x / magnetometer_output.y).atan() * RADIAN_DEGREES;
                     } else if magnetometer_output.x > 0.0 {
-                        bearing_calib += 180.0
+                        bearing_calib += 180.0;
                     }
                 },
                 Err(e) => {}
@@ -215,6 +159,8 @@ pub fn start_sensors() -> (Receiver<InertialMeasurement>, Receiver<Location>) {
             //Integrate gyroscope output
             let gyroscope_output = gyroscope.borrow_mut().angular_rate_reading().unwrap() - gyro_calib;
             current_euler_angles = current_euler_angles + gyroscope_output * dt;
+
+            // println!("g_out: {:?}", gyroscope_output);
 
             //Compute angles from accelerometer
             let mut accelerometer_output = accelerometer.borrow_mut().acceleration_reading().unwrap() - accel_calib;
@@ -247,7 +193,7 @@ pub fn start_sensors() -> (Receiver<InertialMeasurement>, Receiver<Location>) {
             count += 1;
 //            bearing -= bearing_calib;
 
-            current_euler_angles.z = bearing;
+            // current_euler_angles.z = bearing;
 //            if current_euler_angles.z > 360.0 {
 //                current_euler_angles.z -= 360.0;
 //            }
@@ -320,4 +266,85 @@ pub fn calibrate_sensors() {
     };
 
     calibs.write_calibration();
+}
+
+//-----------------------Specific Sensors-------------------------//
+
+pub fn get_bmp280(poll_rate: i64) -> BMP280<LinuxI2CDevice> {
+    let settings = BMP280Settings {
+        compensation: BMP280CompensationAlgorithm::B64,
+        t_sb: BMP280Timing::ms0_5,
+        iir_filter_coeff: BMP280FilterCoefficient::Off,
+        osrs_t: BMP280TemperatureOversampling::x1,
+        osrs_p: BMP280PressureOversampling::StandardResolution,
+        power_mode: BMP280PowerMode::NormalMode
+    };
+
+    let baro = get_linux_bmp280_i2c_device().unwrap();
+    match BMP280::new(baro, settings) {
+        Ok(bmp280) => {
+            return bmp280;
+        },
+        Err(e) => {
+            panic!("Couldn't start bmp280");
+        }
+    }
+}
+
+pub fn get_lsm9ds0(poll_rate: i64) -> LSM9DS0<LinuxI2CDevice> {
+
+    let mut gyro_settings = LSM9DS0GyroscopeSettings {
+        DR: LSM9DS0GyroscopeDataRate::Hz190,
+        BW: LSM9DS0GyroscopeBandwidth::BW1,
+        power_mode: LSM9DS0PowerMode::Normal,
+        zen: true,
+        yen: true,
+        xen: true,
+        sensitivity: LSM9DS0GyroscopeFS::dps500,
+        continuous_update: true,
+        high_pass_filter_enabled: true,
+        high_pass_filter_mode: Some(LSM9DS0GyroscopeHighPassFilterMode::NormalMode),
+        high_pass_filter_configuration: Some(LSM9DS0HighPassFilterCutOffConfig::HPCF_3)
+    };
+
+    if poll_rate <= 95 {
+        gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz95;
+    }
+    else if poll_rate <= 190 {
+        gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz190;
+        gyro_settings.BW = LSM9DS0GyroscopeBandwidth::BW2;
+    }
+    else if poll_rate <= 380 {
+        gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz380;
+        gyro_settings.BW = LSM9DS0GyroscopeBandwidth::BW3;
+    }
+    else {
+        gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz760;
+        gyro_settings.BW = LSM9DS0GyroscopeBandwidth::BW4;
+    }
+
+    let mut accel_mag_settings = LSM9DS0AccelerometerMagnetometerSettings {
+        continuous_update: true,
+        accelerometer_data_rate: LSM9DS0AccelerometerUpdateRate::Hz200,
+        accelerometer_anti_alias_filter_bandwidth: LSM9DS0AccelerometerFilterBandwidth::Hz50,
+        azen: true,
+        ayen: true,
+        axen: true,
+        accelerometer_sensitivity: LSM9DS0AccelerometerFS::g4,
+        magnetometer_resolution: LSM9DS0MagnetometerResolution::Low,
+        magnetometer_data_rate: LSM9DS0MagnetometerUpdateRate::Hz100,
+        magnetometer_low_power_mode: false,
+        magnetometer_mode: LSM9DS0MagnetometerMode::ContinuousConversion,
+        magnetometer_sensitivity: LSM9DS0MagnetometerFS::gauss2
+    };
+    let (gyro, accel) = get_default_lsm9ds0_linux_i2c_devices().unwrap();
+
+    match LSM9DS0::new(accel, gyro, gyro_settings, accel_mag_settings) {
+        Ok(lsm9ds0) => {
+            let lsm9ds0_ref = return lsm9ds0;
+        },
+        Err(e) => {
+            panic!("Couldn't initialize LSM9DS0");
+        }
+    }
 }

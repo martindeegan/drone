@@ -5,19 +5,18 @@ use std;
 use std::thread;
 use std::thread::sleep;
 use std::thread::JoinHandle;
-
 use std::time::Duration;
 use std::f32;
 use std::sync::mpsc::channel;
 use std::sync::mpsc::{Sender, Receiver};
 use std::collections::VecDeque;
-
 use std::io::stdin;
+use std::fs::File;
+use std::io::Write;
+use std::fs::OpenOptions;
+
 use ansi_term::Colour::*;
 use time;
-
-const MAX_VALUE: u32 = 2000;
-const MIN_VALUE: u32 = 1000;
 
 use sensors::GyroSensorData;
 use sensors::start_sensors;
@@ -27,11 +26,10 @@ use connection::InputStream;
 use config::Config;
 use debug_server;
 
-use std::fs::File;
-use std::io::Write;
-use std::fs::OpenOptions;
-
 use sensor_manager::{InertialMeasurement,MultiSensorData};
+
+const MAX_VALUE: u32 = 2000;
+const MIN_VALUE: u32 = 1000;
 
 fn stat(values: [f32;40]) -> (f32, f32) {
     let mut average = 0.0;
@@ -195,12 +193,16 @@ impl MotorManager {
             let start = time::PreciseTime::now();
 
             let mut x_kp = config.x_kp;
-            let mut x_ki = 0.0;
+            let mut x_ki = config.x_ki;
             let mut x_kd = config.x_kd;
 
             let mut y_kp = config.y_kp;
-            let mut y_ki = 0.0;
+            let mut y_ki = config.y_ki;
             let mut y_kd = config.y_kd;
+
+            let mut z_kp = config.z_kp;
+            let mut z_ki = config.z_ki;
+            let mut z_kd = config.z_kd;
 
             let mut mid = config.hover_power as f32;
 
@@ -218,6 +220,9 @@ impl MotorManager {
             }
 
             let max_motor_speed= config.max_motor_speed as f32;
+            let mut last_yaw_rate = 0.0;
+            let mut yaw_integral = 0.0;
+
             loop {
                 let mut up_force = 0.0;
                 if mid < max_motor_speed {
@@ -365,10 +370,25 @@ impl MotorManager {
                 let y_3 = mid + power.y;
                 let y_4 = mid - power.y;
 
-                let m_1 = (x_1 + y_1) / 2.0;
-                let m_2 = (x_2 + y_2) / 2.0;
-                let m_3 = (x_3 + y_3) / 2.0;
-                let m_4 = (x_4 + y_4) / 2.0;
+                let mut m_1 = (x_1 + y_1) / 2.0;
+                let mut m_2 = (x_2 + y_2) / 2.0;
+                let mut m_3 = (x_3 + y_3) / 2.0;
+                let mut m_4 = (x_4 + y_4) / 2.0;
+
+                let desired_z_rate = 0.0;
+
+                let current_yaw_rate = orientation_measurements.rotation_rate.z;
+                let yaw_proportional = desired_z_rate - current_yaw_rate;
+                let yaw_derivative = (current_yaw_rate - last_yaw_rate) / dt;
+                yaw_integral = current_yaw_rate * dt;
+
+                let yaw_error = yaw_proportional * z_kp + yaw_integral * z_ki + yaw_derivative * z_kd;
+                println!("Curr Yaw: {}dps", current_yaw_rate);
+
+                m_1 += yaw_error;
+                m_2 -= yaw_error;
+                m_3 += yaw_error;
+                m_4 -= yaw_error;
 
                 if config.motors_on && total_time > 2.0 {
                     set_power(motor_1, m_1 as u32);

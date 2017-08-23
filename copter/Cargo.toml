@@ -19,6 +19,7 @@ i2cdev-bmp280 = {path = "../i2cdev-sensors/i2cdev-bmp280"}#"0.1.*"#
 #i2cdev-lsm303d = "0.1.*"
 i2cdev-lsm9ds0 = {path = "../i2cdev-sensors/i2cdev-lsm9ds0"}#"0.1.*"#
 i2cdev = "0.3.1"
+unbounded-gpsd = "0.4.1"
 
 [[bin]]
 name = "drone"
