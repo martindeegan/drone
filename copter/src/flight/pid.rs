@@ -1,57 +1,65 @@
-use sensor_manager::MultiSensorData;
+use hardware::sensors::MultiSensorData;
+use flight::imu::Attitude;
+use config::Config;
 
-pub struct Attitude {
-    pitch_kp: f32,
-    pitch_ki: f32,
-    pitch_kd: f32,
-    pitch_i: f32,
+pub struct PID {
     roll_kp: f32,
     roll_ki: f32,
     roll_kd: f32,
-    roll_i: f32,
+    pitch_kp: f32,
+    pitch_ki: f32,
+    pitch_kd: f32,
     yaw_kp: f32,
     yaw_ki: f32,
     yaw_kd: f32,
-    yaw_i: f32,
+    integral: MultiSensorData
 }
 
-impl Attitude {
-    pub fn new() -> Attitude {
+impl PID {
+    pub fn new() -> PID {
+        let config = Config::new();
 
-        Attitude {
-            pitch_kp: 0.0,
-            pitch_ki: 0.0,
-            pitch_kd: 0.0,
-            pitch_i: 0.0,
-            roll_kp: 0.0,
-            roll_ki: 0.0,
-            roll_kd: 0.0,
-            roll_i: 0.0,
-            yaw_kp: 0.0,
-            yaw_ki: 0.0,
-            yaw_kd: 0.0,
-            yaw_i: 0.0,
+        PID {
+            roll_kp: config.roll_kp,
+            roll_ki: config.roll_ki,
+            roll_kd: config.roll_kd,
+            pitch_kp: config.pitch_kp,
+            pitch_ki: config.pitch_ki,
+            pitch_kd: config.pitch_kd,
+            yaw_kp: config.yaw_kp,
+            yaw_ki: config.yaw_ki,
+            yaw_kd: config.yaw_kd,
+            integral: MultiSensorData::zeros()
         }
     }
 
-    pub fn get_motor_powers(&mut self, dt: f32, current_attitude: MultiSensorData, current_angular_rate: MultiSensorData,
-                            desired_attitude: MultiSensorData, desired_yaw: f32, mid_level: f32) -> (f32, f32, f32, f32)
+    pub fn correct_attitude(&mut self, dt: f32, current_attitude: Attitude, current_angular_rate: MultiSensorData,
+                            desired_attitude: Attitude, mid_level: f32) -> (f32, f32, f32, f32)
     {
-        // Pitch PID
-        let pitch_p = desired_attitude.y - current_attitude.y;
-        self.pitch_i += pitch_p * dt;
-        let pitch_d = current_angular_rate.y;
+        let proportional = current_attitude - desired_attitude;
+        let derivative = current_angular_rate;
+        self.integral = self.integral + proportional * dt;
 
-        // Roll PID
-        let roll_p = desired_attitude.x - current_attitude.x;
-        self.roll_i += roll_p * dt;
-        let roll_d = current_angular_rate.x;
+        let mut error = MultiSensorData::zeros();
+        // x: Roll, y: Pitch PID
+        error.x = proportional.x * self.roll_kp + self.integral.x * self.roll_ki + derivative.x * self.roll_kd;
+        error.y = proportional.y * self.pitch_kp + self.integral.y * self.pitch_ki + derivative.y * self.pitch_kd;
 
-        // Yaw PID
-        let yaw_p = desired_yaw - current_angular_rate.z;
-        self.yaw_i += yaw_p * dt;
-        let yaw_d = 0.0;
-        (0.0, 0.0, 0.0, 0.0)
+        let (mut m1, mut m2, mut m3, mut m4) = (mid_level, mid_level, mid_level, mid_level);
+        m1 = (0.0 + error.x - error.y) / 2.0;
+        m2 = (0.0 + error.x + error.y) / 2.0;
+        m3 = (0.0 - error.x + error.y) / 2.0;
+        m4 = (0.0 - error.x - error.y) / 2.0;
+
+        m1 += mid_level;
+        m2 += mid_level;
+        m3 += mid_level;
+        m4 += mid_level;
+
+        // z: Yaw PID is added afterwards
+        error.z = proportional.z * self.yaw_kp + self.integral.z * self.yaw_ki + derivative.z * self.yaw_kd;
+
+        (m1, m2, m3, m4)
     }
 }
 

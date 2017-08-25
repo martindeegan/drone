@@ -1,4 +1,20 @@
-use sensor_manager::MultiSensorData;
+use hardware::sensors::{MultiSensorData,start_sensors,SensorInput};
+
+use std::sync::mpsc::Receiver;
+use std::f32::consts::PI;
+
+// x: roll
+// y: pitch
+// z: yaw
+pub type Attitude = MultiSensorData;
+
+// Position in space relative to the tracking start
+// x: North/South
+// y: East/West
+// z: Altitude
+pub type Position = MultiSensorData;
+
+const RADIAN_TO_DEGREES: f32 = 180.0 / PI;
 
 pub struct AttitudeOutput {
     current_attitude: Option<MultiSensorData>,
@@ -7,21 +23,101 @@ pub struct AttitudeOutput {
 }
 
 pub struct IMU {
-    //
+    // Input
+    input_rx: Receiver<SensorInput>,
+
+    // Previous data
+    last_angular_rate: MultiSensorData,
+    last_acceleration: MultiSensorData,
+    last_magnetic_reading: MultiSensorData,
+    last_temperature: f32,
+    last_pressure: f32,
+
+    // Previous states
+    last_attitude: Attitude,
+    last_position: Position,
+
+    // Dead reckoning
     tracking: bool,
-    relative_location: MultiSensorData
+    relative_location: MultiSensorData,
+
+    north_reading: MultiSensorData
 }
 
 impl IMU {
     pub fn new() -> IMU {
+        let input_rx = start_sensors();
         IMU {
+            input_rx: start_sensors(),
+            last_angular_rate: MultiSensorData::zeros(),
+            last_acceleration: MultiSensorData::zeros(),
+            last_magnetic_reading: MultiSensorData::zeros(),
+            last_temperature: 0.0,
+            last_pressure: 0.0,
+            last_attitude: Attitude::zeros(),
+            last_position: Position::zeros(),
             tracking: false,
-            relative_location: MultiSensorData::zeros()
+            relative_location: MultiSensorData::zeros(),
+            north_reading: MultiSensorData { x: -0.37, y: 0.0, z: 0.6 },
         }
     }
 
-    pub fn get_orientation(&mut self) {
+    pub fn read_data(&mut self) {
+        match self.input_rx.recv() {
+            Ok(input) => {
+                self.last_angular_rate = input.angular_rate;
+                self.last_acceleration = input.acceleration;
+                if input.magnetic_reading.is_some() {
+                    self.last_magnetic_reading = input.magnetic_reading.unwrap();
+                }
+                self.last_pressure = input.pressure;
+            },
+            Err(e) => {}
+        }
+    }
 
+    pub fn get_attitude(&mut self, dt: f32) -> Attitude {
+        // Integrate angular rate
+        self.last_attitude = self.last_attitude + self.last_angular_rate * dt;
+
+        // Compute angles from gravity
+        let pitch_a = self.last_acceleration.x.atan2(self.last_acceleration.z) * RADIAN_TO_DEGREES;
+        let roll_a = self.last_acceleration.y.atan2(self.last_acceleration.z) * RADIAN_TO_DEGREES;
+
+        let alpha = 0.02;
+        self.last_attitude = self.last_attitude * (1.0 - alpha) + Attitude { x: roll_a, y: pitch_a, z: self.last_attitude.z } * alpha;
+
+        self.last_attitude
+    }
+
+    pub fn get_angular_rate(&self) -> MultiSensorData {
+        self.last_angular_rate
+    }
+
+    pub fn get_bearing(&self) -> f32 {
+        let by2 = self.last_magnetic_reading.z * self.last_attitude.x.sin() - self.last_magnetic_reading.y * self.last_attitude.x.cos();
+        let bz2 = self.last_magnetic_reading.y * self.last_attitude.x.sin() + self.last_magnetic_reading.z * self.last_attitude.x.cos();
+        let bx3 = self.last_magnetic_reading.x * self.last_attitude.y.sin() + bz2 * self.last_attitude.y.cos();
+        by2.atan2(bx3) * RADIAN_TO_DEGREES
+
+        // let dphi = self.last_angular_rate.x + self.last_angular_rate.y * self.last_attitude.x.sin() * self.last_attitude.y.tan() + self.last_angular_rate.z * self.last_attitude.x.cos() * self.last_attitude.y.tan();
+        // let dtheta = self.last_angular_rate.y * self.last_attitude.x.cos() – self.last_angular_rate.z * self.last_attitude.x.sin();
+        // let dpsi = self.last_angular_rate.y * self.last_attitude.x.sin() / self.last_attitude.y.cos() + self.last_angular_rate.z * self.last_attitude.x.cos() / self.last_attitude.y.cos();
+
+        // let x_tilted = self.last_magnetic_reading.x * self.last_attitude.y.cos() +
+        // self.last_magnetic_reading.y * self.last_attitude.x.sin() * self.last_attitude.y.sin() -
+        // self.last_magnetic_reading.z * self.last_attitude.x.cos() * self.last_attitude.y.sin();
+        //
+        // let y_tilted = self.last_magnetic_reading.y * self.last_attitude.x.cos() + self.last_magnetic_reading.z * self.last_attitude.x.sin();
+        // (x_tilted / y_tilted).atan() * RADIAN_TO_DEGREES
+    }
+
+    pub fn get_altitude(&self) -> f32 {
+        0.0
+    }
+
+    pub fn get_position(&self) -> Position {
+        Position::zeros()
     }
 
     pub fn start_tracking(&mut self) {
@@ -31,16 +127,6 @@ impl IMU {
 
     pub fn stop_tracking(&mut self) {
         self.tracking = false;
-    }
-
-    // Dead-reckoning
-    // Returns (relative_x, relative_y, altitude)
-    pub fn get_positioning(&mut self) -> (f32, f32, f32) {
-        if self.tracking {
-
-        }
-
-        (0.0,0.0,0.0)
     }
 }
 

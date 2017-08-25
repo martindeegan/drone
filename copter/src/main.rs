@@ -9,11 +9,11 @@ extern crate ansi_term;
 use config::Config;
 
 mod hardware;
-// mod flight;
+mod flight;
 mod connection;
 
-use hardware::gps::get_gps;
-use hardware::sensors::*;
+use flight::{FlightMode,start_flight};
+use hardware::sensors::calibrate_sensors;
 
 // use flight::{FlightMode,start_flight};
 // use hardware::motors::MotorManager;
@@ -40,7 +40,7 @@ fn main() {
             input = String::new();
             stdin().read_line(&mut input).expect("Error");
 
-            // calibrate_sensors();
+            calibrate_sensors();
         }
         _ => {
             start();
@@ -51,19 +51,22 @@ fn main() {
 
 fn start() {
 
-    let (gyro_rx, accel_rx, mag_rx, thermo_rx, baro_rx) = start_sensors();
-    loop {
+    let flight_mode_controller = start_flight();
+    println!("{}", Green.paint("[Input]: Press enter to start the flight."));
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("Error");
 
-        let angular_rate = gyro_rx.recv().unwrap();
-        let acceleration = accel_rx.try_recv().unwrap();
+    flight_mode_controller.send(FlightMode::TakeOff);
 
-        println!("Omega: {:?}", angular_rate);
-        println!("Acceleration: {:?}", acceleration);
-        println!("Temp: {}, Press: {}", thermo_rx.try_recv().unwrap(), baro_rx.try_recv().unwrap());
+    println!("{}", Green.paint("[Input]: Press enter to stop the flight."));
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("Error");
 
-        // thread::sleep_ms(10);
-    }
+    flight_mode_controller.send(FlightMode::Landing);
 
+    println!("{}", Green.paint("[Input]: Press enter to shutdown."));
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("Error");
     // let motor_manager = MotorManager::new();
 
     //

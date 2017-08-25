@@ -1,12 +1,17 @@
 mod altitude;
-mod attitude;
+mod pid;
 mod imu;
 mod navigation;
 
 use self::altitude::Altitude;
-use self::attitude::Attitude;
-use self::imu::IMU;
+use self::pid::PID;
+use self::imu::{Attitude,IMU};
 use self::navigation::{Navigator,Destination,lat_lon_bearing,lat_lon_distance};
+
+use hardware::motors::MotorManager;
+use hardware::sensors::start_sensors;
+
+use config::Config;
 
 use time::{Duration,PreciseTime};
 
@@ -14,6 +19,7 @@ use std::thread;
 use std::sync::mpsc::{channel,Receiver,Sender};
 use std::time::Duration as _Duration;
 use std::string::String;
+use std::fmt;
 
 #[derive(Clone,Copy)]
 pub enum FlightMode {
@@ -42,7 +48,7 @@ pub fn start_flight() -> Sender<FlightMode> {
     let (mode_tx, mode_rx): (Sender<FlightMode>, Receiver<FlightMode>) = channel();
 
     thread::Builder::new().name("Flight Thread.".to_string()).spawn(move || {
-
+        let motor_manager = MotorManager::new();
 
         let sleep_time = _Duration::new(0, 1000000000 / 400);
         let mut last_time = PreciseTime::now();
@@ -50,8 +56,13 @@ pub fn start_flight() -> Sender<FlightMode> {
         // Initialize all parts of control loop
         let mut imu = IMU::new();
         let mut altitude_holder = Altitude::new();
-        let mut attitude_holder = Attitude::new();
+        let mut pid_controller = PID::new();
         let mut navigator = Navigator::new();
+
+        let config = Config::new();
+        let start_power = config.hover_power;
+        let take_off_max = config.max_motor_speed;
+        let mut mid_level: f32 = 0.0;
 
         loop {
             let current_time = PreciseTime::now();
@@ -61,12 +72,14 @@ pub fn start_flight() -> Sender<FlightMode> {
                 Ok(new_mode) => {
                     match new_mode.clone() {
                         FlightMode::Off => {
+                            motor_manager.set_powers(1000.0, 1000.0, 1000.0, 1000.0);
                             imu.stop_tracking();
                         },
                         FlightMode::Landing => {
                             imu.start_tracking();
                         },
                         FlightMode::TakeOff => {
+                            mid_level = start_power as f32;
                             imu.start_tracking();
                         },
                         FlightMode::Hold => {
@@ -82,14 +95,34 @@ pub fn start_flight() -> Sender<FlightMode> {
             // Get IMU data
 
             match flight_mode {
-                FlightMode::Off => {},
+                FlightMode::Off => { },
                 FlightMode::TakeOff => {
-                    //Aim for 1m above the start
-                    //Aim for 0 track
+                    if mid_level < take_off_max as f32 {
+                        mid_level += 0.5;
+                    }
+                    imu.read_data();
+                    let attitude = imu.get_attitude(dt);
+                    let angular_rate = imu.get_angular_rate();
+                    // println!("Bearing: {}", imu.get_bearing());
+                    println!("Roll: {roll:+06.*}, Pitch: {pitch:+06.*}, Yaw: {yaw:+06.*}, dt: {time:.*}", 2, 2, 2, 8, roll=attitude.x, pitch=attitude.y, yaw=attitude.z, time=dt);
+
+                    let (mut m1, mut m2, mut m3, mut m4) = pid_controller.correct_attitude(dt, attitude, angular_rate, Attitude::zeros(), mid_level);
+
+                    motor_manager.set_powers(m1, m2, m3, m4);
                 }
                 FlightMode::Landing => {
-                    //Aim for negative climb
-                    //Set flight mode off on 0 climb for extended time
+                    if mid_level > 1000.0 {
+                        mid_level -= 0.2;
+                    } else {
+                        flight_mode = FlightMode::Off;
+                    }
+                    imu.read_data();
+                    let attitude = imu.get_attitude(dt);
+                    let angular_rate = imu.get_angular_rate();
+
+                    let (mut m1, mut m2, mut m3, mut m4) = pid_controller.correct_attitude(dt, attitude, angular_rate, Attitude::zeros(), mid_level);
+
+                    motor_manager.set_powers(m1, m2, m3, m4);
                 },
                 FlightMode::Hold => {
                     //Aim for 0 climb and track

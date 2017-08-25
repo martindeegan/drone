@@ -41,12 +41,13 @@ pub fn terminate_all_motors() {
 
 pub struct MotorManager {
     pub motors: Vec<u32>,
+    motors_on: bool
 }
 
 impl MotorManager {
     pub fn new() -> MotorManager {
         let config = Config::new();
-        let mm = MotorManager { motors: config.motors.clone() };
+        let mm = MotorManager { motors: config.motors.clone(), motors_on: config.motors_on };
         mm.initialize();
         mm
     }
@@ -69,21 +70,23 @@ impl MotorManager {
     }
 
     fn arm(&self) {
-        println!("[Motors]: Arming motors.");
+        if self.motors_on {
+            println!("[Motors]: Arming motors.");
 
-        let mut handles: Vec<JoinHandle<()>> = Vec::new();
+            let mut handles: Vec<JoinHandle<()>> = Vec::new();
 
-        for motor in self.motors.clone() {
-            handles.push(arm(motor));
-        }
+            for motor in self.motors.clone() {
+                handles.push(arm(motor));
+            }
 
-        for handle in handles {
-            handle.join().unwrap();
-        }
+            for handle in handles {
+                handle.join().unwrap();
+            }
 
-        println!("[Motors]: Motors armed.");
-        for motor in self.motors.clone() {
-            set_power(motor, MIN_VALUE);
+            println!("[Motors]: Motors armed.");
+            for motor in self.motors.clone() {
+                set_power(motor, MIN_VALUE);
+            }
         }
     }
 
@@ -93,10 +96,15 @@ impl MotorManager {
     }
 
     pub fn set_powers(&self, m1: f32, m2: f32, m3: f32, m4: f32) {
-        set_power(self.motors[0], m1 as u32);
-        set_power(self.motors[1], m2 as u32);
-        set_power(self.motors[2], m3 as u32);
-        set_power(self.motors[3], m4 as u32);
+        if self.motors_on {
+            set_power(self.motors[0], m1 as u32);
+            set_power(self.motors[1], m2 as u32);
+            set_power(self.motors[2], m3 as u32);
+            set_power(self.motors[3], m4 as u32);
+        }
+        else {
+            // println!("m1: {}, m2: {}, m3: {}, m4: {}", m1 as u32, m2 as u32, m3 as u32, m4 as u32);
+        }
     }
 }
 

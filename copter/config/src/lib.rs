@@ -63,17 +63,22 @@ impl SensorCalibrations {
     }
 }
 
+//  "motors": [16, 20, 26, 19],
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
-    pub x_kp: f32,
-    pub x_ki: f32,
-    pub x_kd: f32,
-    pub y_kp: f32,
-    pub y_ki: f32,
-    pub y_kd: f32,
-    pub z_kp: f32,
-    pub z_ki: f32,
-    pub z_kd: f32,
+    pub roll_kp: f32,
+    pub roll_ki: f32,
+    pub roll_kd: f32,
+    pub pitch_kp: f32,
+    pub pitch_ki: f32,
+    pub pitch_kd: f32,
+    pub yaw_kp: f32,
+    pub yaw_ki: f32,
+    pub yaw_kd: f32,
+    pub alt_kp: f32,
+    pub alt_ki: f32,
+    pub alt_kd: f32,
     pub desired_angle: f32,
     pub motors: Vec<u32>,
     pub motor_cutoff: f32,

@@ -9,14 +9,24 @@ use super::i2csensors::*;
 
 use config::{Config,SensorCalibrations};
 
+use time::{Duration,PreciseTime};
+
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::thread;
 use std::sync::mpsc::{Sender,Receiver,channel};
-use std::time::Duration;
 use std::io::stdin;
+use std::collections::VecDeque;
 
-type MultiSensorData = Vec3;
+pub type MultiSensorData = Vec3;
+
+pub struct SensorInput {
+    pub angular_rate: MultiSensorData,
+    pub acceleration: MultiSensorData,
+    pub magnetic_reading: Option<MultiSensorData>,
+    pub temperature: f32,
+    pub pressure: f32
+}
 
 fn get_sensors() -> (Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
                      Rc<RefCell<Thermometer<Error = LinuxI2CError>>>,
@@ -117,39 +127,56 @@ fn get_sensors() -> (Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
 }
 
 
-// Returns (Gyro_rx, accel_rx, mag_rx, thermo_rx, baro_rx);
-pub fn start_sensors() -> (Receiver<MultiSensorData>, Receiver<MultiSensorData>, Receiver<MultiSensorData>, Receiver<f32>, Receiver<f32>) {
+// Returns (gyro_accel_rx, mag_rx, thermo_baro_rx);
+pub fn start_sensors() -> (Receiver<SensorInput>) {
     let config = Config::new();
     let sensor_poll_rate = config.sensor_sample_frequency;
-    let sensor_poll_delay = (1000000000 / sensor_poll_rate) as u32;
+    let sensor_poll_delay = (1000000000 / sensor_poll_rate) as i64;
 
-    let (gyro_tx, gyro_rx): (Sender<MultiSensorData>, Receiver<MultiSensorData>) = channel();
-    let (accel_tx, accel_rx): (Sender<MultiSensorData>, Receiver<MultiSensorData>) = channel();
-    let (mag_tx, mag_rx): (Sender<MultiSensorData>, Receiver<MultiSensorData>) = channel();
-    let (thermo_tx, thermo_rx): (Sender<f32>, Receiver<f32>) = channel();
-    let (baro_tx, baro_rx): (Sender<f32>, Receiver<f32>) = channel();
+    let (sensor_tx, sensor_rx): (Sender<SensorInput>, Receiver<SensorInput>) = channel();
 
     let magnetometer_counter = sensor_poll_rate / 100;
 
     thread::Builder::new().name("Sensor Thread".to_string()).spawn(move || {
-        let loop_duration = Duration::new(0, sensor_poll_delay);
+        let loop_duration = Duration::nanoseconds(sensor_poll_delay);
         let mut count = 0;
         let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) = get_sensors();
 
         let calibs = SensorCalibrations::new();
-        let (gyro_calib, accel_calib) = (Vec3 { x: calibs.gyro_x, y: calibs.gyro_y, z: calibs.gyro_z }, Vec3 { x: calibs.accel_x, y: calibs.accel_y, z: calibs.accel_z });
+        let (mut gyro_calib, mut accel_calib) = (Vec3 { x: calibs.gyro_x, y: calibs.gyro_y, z: calibs.gyro_z }, Vec3 { x: calibs.accel_x, y: calibs.accel_y, z: calibs.accel_z });
+
+        // let average_alpha = 0.005;
+        let mut yaw_average = gyro_calib.z;
+        let mut yaw_deque: VecDeque<f32> = VecDeque::new();
+        let deque_size = 100;
 
         loop {
+            let start_time = PreciseTime::now();
+
+            let mut input = SensorInput {
+                angular_rate: MultiSensorData::zeros(),
+                acceleration: MultiSensorData::zeros(),
+                magnetic_reading: None,
+                temperature: 0.0,
+                pressure: 0.0
+            };
+
             match gyroscope.borrow_mut().angular_rate_reading() {
                 Ok(angular_rate) => {
-                    gyro_tx.send(angular_rate - gyro_calib);
+                    yaw_average += angular_rate.z / (deque_size as f32);
+                    yaw_deque.push_back(angular_rate.z);
+                    if yaw_deque.len() > deque_size {
+                        yaw_average -= yaw_deque.pop_front().unwrap() / (deque_size as f32);
+                    }
+                    input.angular_rate = angular_rate - gyro_calib;
+                    input.angular_rate.y *= -1.0;
                 },
                 Err(e) => {}
             }
 
             match accelerometer.borrow_mut().acceleration_reading() {
                 Ok(acceleration) => {
-                    accel_tx.send(acceleration - accel_calib);
+                    input.acceleration = acceleration - accel_calib;
                 },
                 Err(e) => {}
             }
@@ -157,32 +184,38 @@ pub fn start_sensors() -> (Receiver<MultiSensorData>, Receiver<MultiSensorData>,
             if count % magnetometer_counter == 0 {
                 match magnetometer.borrow_mut().magnetic_reading() {
                     Ok(magnetism) => {
-                        mag_tx.send(magnetism);
+                        input.magnetic_reading = Some(magnetism);
                     },
                     Err(e) => {}
                 }
             }
 
             match thermometer.borrow_mut().temperature_celsius() {
-                Ok(temperature) => {
-                    thermo_tx.send(temperature);
+                Ok(temp) => {
+                    input.temperature = temp;
                 },
                 Err(e) => {}
             }
 
             match barometer.borrow_mut().pressure_kpa() {
                 Ok(pressure) => {
-                    baro_tx.send(pressure);
+                    input.pressure = pressure;
                 },
                 Err(e) => {}
             }
 
+            sensor_tx.send(input);
+
             count += 1;
-            thread::sleep(loop_duration);
+
+            let remaining = loop_duration - start_time.to(PreciseTime::now());
+            if remaining > Duration::zero() {
+                thread::sleep(Duration::to_std(&remaining).unwrap());
+            }
         }
     });
 
-    (gyro_rx, accel_rx, mag_rx, thermo_rx, baro_rx)
+    sensor_rx
 }
 
 pub fn calibrate_sensors() {
@@ -194,7 +227,7 @@ pub fn calibrate_sensors() {
     for i in 0..100 {
         acceleration_calibration = acceleration_calibration + accelerometer.borrow_mut().acceleration_reading().unwrap();
         gyroscope_calibration = gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
-        thread::sleep(Duration::from_millis(50));
+        thread::sleep_ms(50);
     }
 
     println!("Rotate 180 degrees then press enter.");
@@ -204,7 +237,7 @@ pub fn calibrate_sensors() {
     for i in 0..100 {
         acceleration_calibration = acceleration_calibration + accelerometer.borrow_mut().acceleration_reading().unwrap();
         gyroscope_calibration = gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
-        thread::sleep(Duration::from_millis(50));
+        thread::sleep_ms(50);
     }
 
     acceleration_calibration = acceleration_calibration / 200.0;

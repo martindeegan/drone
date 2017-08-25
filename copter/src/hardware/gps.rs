@@ -20,7 +20,22 @@ pub struct GPSData {
     track: Option<f64>
 }
 
+impl GPSData {
+    pub fn zeros() -> GPSData {
+        GPSData {
+            latitude: 0.0,
+            longitude: 0.0,
+            altitude: None,
+            speed: None,
+            climb: None,
+            track: None
+        }
+    }
+}
+
 pub fn get_gps() -> Receiver<GPSData> {
+    // let data = GPSData::zeros();
+
     let (gps_tx, gps_rx): (Sender<GPSData>, Receiver<GPSData>) = channel();
     thread::Builder::new().name("GPS Thread".to_string()).spawn(move || {
         let mut gps_connection = GpsdConnection::new("localhost:2947").unwrap();
