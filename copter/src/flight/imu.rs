@@ -1,7 +1,8 @@
 use hardware::sensors::{MultiSensorData,start_sensors,SensorInput};
 
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Sender, Receiver, channel};
 use std::f32::consts::PI;
+use na::{Vector3,Rotation};
 
 // x: roll
 // y: pitch
@@ -13,6 +14,10 @@ pub type Attitude = MultiSensorData;
 // y: East/West
 // z: Altitude
 pub type Position = MultiSensorData;
+
+pub fn magnitude(vector: MultiSensorData) -> f32 {
+    (vector.x * vector.x + vector.y * vector.y + vector.z * vector.z).sqrt()
+}
 
 const RADIAN_TO_DEGREES: f32 = 180.0 / PI;
 
@@ -27,28 +32,30 @@ pub struct IMU {
     input_rx: Receiver<SensorInput>,
 
     // Previous data
-    last_angular_rate: MultiSensorData,
-    last_acceleration: MultiSensorData,
-    last_magnetic_reading: MultiSensorData,
-    last_temperature: f32,
-    last_pressure: f32,
+    pub last_angular_rate: MultiSensorData,
+    pub last_acceleration: MultiSensorData,
+    pub last_magnetic_reading: MultiSensorData,
+    pub last_temperature: f32,
+    pub last_pressure: f32,
 
     // Previous states
-    last_attitude: Attitude,
-    last_position: Position,
+    pub last_attitude: Attitude,
+    pub last_position: Position,
+    pub last_altitude: f32,
 
     // Dead reckoning
     tracking: bool,
-    relative_location: MultiSensorData,
+    pub relative_location: MultiSensorData,
 
-    north_reading: MultiSensorData
+    north_reading: MultiSensorData,
 }
 
+
+
 impl IMU {
-    pub fn new() -> IMU {
-        let input_rx = start_sensors();
+    pub fn new(sensor_stream: Receiver<SensorInput>) -> IMU {
         IMU {
-            input_rx: start_sensors(),
+            input_rx: sensor_stream,
             last_angular_rate: MultiSensorData::zeros(),
             last_acceleration: MultiSensorData::zeros(),
             last_magnetic_reading: MultiSensorData::zeros(),
@@ -56,6 +63,7 @@ impl IMU {
             last_pressure: 0.0,
             last_attitude: Attitude::zeros(),
             last_position: Position::zeros(),
+            last_altitude: 0.0,
             tracking: false,
             relative_location: MultiSensorData::zeros(),
             north_reading: MultiSensorData { x: -0.37, y: 0.0, z: 0.6 },
@@ -74,153 +82,175 @@ impl IMU {
             },
             Err(e) => {}
         }
+
+        loop {
+            match self.input_rx.try_recv() {
+                Ok(input) => {
+                    self.last_angular_rate = input.angular_rate;
+                    self.last_acceleration = input.acceleration;
+                    if input.magnetic_reading.is_some() {
+                        self.last_magnetic_reading = input.magnetic_reading.unwrap();
+                    }
+                    self.last_pressure = input.pressure;
+                },
+                Err(e) => { break; }
+            }  
+        }
     }
 
-    pub fn get_attitude(&mut self, dt: f32) -> Attitude {
-        // Integrate angular rate
+    pub fn compute_intertial_reference(&mut self, dt: f32) {
+        self.compute_attitude(dt);
+        self.compute_altitude();
+        self.compute_position();
+    }
+
+     // "motors": [26, 19, 16, 20],
+     // 143 -57g
+     // 126
+     // s128
+     // 126
+
+     //53g
+     //
+
+    fn compute_attitude(&mut self, dt: f32) {
+
+        // Trig calculations
+        let s_roll = self.last_attitude.x.sin(); let c_roll = self.last_attitude.x.cos();
+        let s_pitch = self.last_attitude.y.sin(); let c_pitch = self.last_attitude.y.cos();
+
+        // Estimate
         self.last_attitude = self.last_attitude + self.last_angular_rate * dt;
 
-        // Compute angles from gravity
-        let pitch_a = self.last_acceleration.x.atan2(self.last_acceleration.z) * RADIAN_TO_DEGREES;
-        let roll_a = self.last_acceleration.y.atan2(self.last_acceleration.z) * RADIAN_TO_DEGREES;
+        // Compute true values
+        let A_x = self.last_acceleration.x;
+        let A_y = self.last_acceleration.y;
+        let A_z = self.last_acceleration.z;
+        let roll = A_y.atan2(A_z) * RADIAN_TO_DEGREES;
+        let pitch = A_x.atan2((A_y * A_y + A_z * A_z).sqrt()) * RADIAN_TO_DEGREES * -1.0;
+
+        let M_x = self.last_magnetic_reading.x; let M_y = self.last_magnetic_reading.y; let M_z = self.last_magnetic_reading.z; 
+        let mx_ = self.north_reading.x / (self.north_reading.x * self.north_reading.x + self.north_reading.y * self.north_reading.y);
+        let my_ = self.north_reading.y / (self.north_reading.x * self.north_reading.x + self.north_reading.y * self.north_reading.y);
+
+        let yaw_num = M_x * my_ * c_pitch + M_y * (my_ * s_pitch * s_roll - mx_ * c_roll) + M_z * (my_ * c_roll * s_pitch + mx_ * s_roll);
+        let yaw_den = M_x * mx_ * c_pitch + M_y * (mx_ * s_roll * s_pitch + my_ * c_roll) + M_z * (mx_ * c_roll * s_pitch + my_ * s_roll);
+
+        let yaw = yaw_num.atan2(yaw_den) * RADIAN_TO_DEGREES * -1.0;
+        // println!("Last angular rate: {:?}, {:?}, {:?}", self.last_angular_rate.x, self.last_angular_rate.y, self.last_angular_rate.z);
+
+        // let magnitude = magnitude(self.last_acceleration);
+        // let pitch = (self.last_acceleration.x / magnitude).asin() * RADIAN_TO_DEGREES;
+        // let roll = self.last_acceleration.y.atan2(self.last_acceleration.z) * RADIAN_TO_DEGREES;
+
+        // let A_yaw = self.last_attitude.y.cos() * self.last_magnetic_reading.x - 
+        //           self.last_attitude.x.sin() * self.last_attitude.y.sin() * self.last_magnetic_reading.y - 
+        //           self.last_attitude.x.cos() * self.last_attitude.y.sin() * self.last_magnetic_reading.z;           
+        // let B_yaw = self.last_attitude.x.cos() * self.last_magnetic_reading.y - self.last_attitude.x.sin() * self.last_magnetic_reading.z;
+        // let yaw = (self.north_reading.x * (A_yaw + B_yaw)).atan2(self.north_reading.y * (A_yaw - B_yaw)) * RADIAN_TO_DEGREES;
 
         let alpha = 0.02;
-        self.last_attitude = self.last_attitude * (1.0 - alpha) + Attitude { x: roll_a, y: pitch_a, z: self.last_attitude.z } * alpha;
-
-        self.last_attitude
+        self.last_attitude = self.last_attitude * (1.0 - alpha) + Attitude { x: roll, y: pitch, z: yaw } * alpha;
     }
 
-    pub fn get_angular_rate(&self) -> MultiSensorData {
-        self.last_angular_rate
+    fn compute_altitude(&mut self) {
+        let pressure = self.last_pressure * 1000.0;
+        let sea_level_pa = 101.325 * 1000.0;
+        self.last_altitude = 44330. * (1. - (pressure / sea_level_pa).powf(0.1903));
     }
 
-    pub fn get_bearing(&self) -> f32 {
-        let by2 = self.last_magnetic_reading.z * self.last_attitude.x.sin() - self.last_magnetic_reading.y * self.last_attitude.x.cos();
-        let bz2 = self.last_magnetic_reading.y * self.last_attitude.x.sin() + self.last_magnetic_reading.z * self.last_attitude.x.cos();
-        let bx3 = self.last_magnetic_reading.x * self.last_attitude.y.sin() + bz2 * self.last_attitude.y.cos();
-        by2.atan2(bx3) * RADIAN_TO_DEGREES
+    fn compute_position(&mut self) {
 
-        // let dphi = self.last_angular_rate.x + self.last_angular_rate.y * self.last_attitude.x.sin() * self.last_attitude.y.tan() + self.last_angular_rate.z * self.last_attitude.x.cos() * self.last_attitude.y.tan();
-        // let dtheta = self.last_angular_rate.y * self.last_attitude.x.cos() – self.last_angular_rate.z * self.last_attitude.x.sin();
-        // let dpsi = self.last_angular_rate.y * self.last_attitude.x.sin() / self.last_attitude.y.cos() + self.last_angular_rate.z * self.last_attitude.x.cos() / self.last_attitude.y.cos();
-
-        // let x_tilted = self.last_magnetic_reading.x * self.last_attitude.y.cos() +
-        // self.last_magnetic_reading.y * self.last_attitude.x.sin() * self.last_attitude.y.sin() -
-        // self.last_magnetic_reading.z * self.last_attitude.x.cos() * self.last_attitude.y.sin();
-        //
-        // let y_tilted = self.last_magnetic_reading.y * self.last_attitude.x.cos() + self.last_magnetic_reading.z * self.last_attitude.x.sin();
-        // (x_tilted / y_tilted).atan() * RADIAN_TO_DEGREES
-    }
-
-    pub fn get_altitude(&self) -> f32 {
-        0.0
-    }
-
-    pub fn get_position(&self) -> Position {
-        Position::zeros()
-    }
-
-    pub fn start_tracking(&mut self) {
-        self.tracking = true;
-        self.relative_location = MultiSensorData::zeros();
-    }
-
-    pub fn stop_tracking(&mut self) {
-        self.tracking = false;
     }
 }
 
-//use config::Config;
-//
-//use sensor_manager;
-//use sensor_manager::{MultiSensorData,SensorManager};
-//
-//use std::sync::mpsc::{Sender,Receiver,channel};
-//use std::thread;
-//use std::time::Duration;
-//use std::f32::consts::PI;
-//
-//pub struct IMUData {
-//
-//}
-//
-//fn acceleration_data_to_angles(acceleration: MultiSensorData) -> MultiSensorData {
-//    let angle_acc_x = acceleration.y.atan2(acceleration.z) * 180.0 / PI;
-//    let angle_acc_y = acceleration.x.atan2(acceleration.z) * 180.0 / PI * -1.0;
-//    MultiSensorData {
-//        x: angle_acc_x,
-//        y: angle_acc_y,
-//        z: 0.0
-//    }
-//}
-//
-//fn magnetic_vector_to_bearing(magnetic_vector: MultiSensorData, current_angle: MultiSensorData) -> MultiSensorData {
-//    MultiSensorData::zeros()
-//}
-//
-//fn bearing_gyro_z_to_angle() -> MultiSensorData {
-//    MultiSensorData::zeros()
-//}
-//
-//pub struct IMU {
-//
-//}
-//
-//impl IMU {
-//
-//
-//
-//    pub fn start_imu(&mut self) -> (Sender<()>, Receiver<IMUData>) {
-//
-//        //Signal that PID loop is ready for more data
-//        let (tx, ready_signal): (Sender<()>, Receiver<()>) = channel();
-//        let (data_transmitter, rx): (Sender<IMUData>, Receiver<IMUData>) = channel();
-//
-//        thread::Builder::new().name("IMU loop".to_string()).spawn(move || {
-//            let config = Config::new();
-//            let loop_time = Duration::new(0, 1000000000 / config.sensor_sample_frequency);
-//
-//            let sensor_manager = SensorManager::new();
-//            let (gyro_pipe, accel_pipe, mag_pipe) = sensor_manager.start_sensor_manager();
-//
-//            let mut last_gyro = MultiSensorData::zeros();
-//            let mut last_accel = MultiSensorData::zeros();
-//            let mut last_mag = MultiSensorData::zeros();
-//            let mut last_angle = MultiSensorDat::zeros();
-//
-//            loop {
-//                //Receive any new raw data
-//                match gyro_pipe.try_recv() {
-//                    Ok(dps) => {
-//                        last_gyro = dps;
-//                    },
-//                    Err(e) => {}
-//                }
-//                match accel_pipe.try_recv() {
-//                    Ok(accel) => {
-//                        last_accel = accel;
-//                    },
-//                    Err(e) => {}
-//                }
-//                match mag_pipe.try_recv() {
-//                    Ok(mag) => {
-//                        last_mag = mag;
-//                    },
-//                    Err(e) => {}
-//                }
-//
-//
-//                let accel_angles = acceleration_data_to_angles(last_accel);
-//
-//                let alpha = 0.02;
-//                last_angle = last_angle +
-//
-//
-//
-//                thread::sleep(loop_time);
-//            }
-//        });
-//        (tx, rx)
-//    }
-//
-//}
+// impl Into<Vector3> for MultiSensorData {
+//     fn into(self) -> Vector3 {
+
+//     }
+// }
+
+// fn world_space_to_drone_space(vector: Vector3, attitude: Attitude) -> Vector3 {
+//     let roll_transform;
+//     let pitch_transform;
+//     let yaw_transform;
+// }
+
+// fn drone_space_to_world_space(vector: Vector3, attitude: Attitude) -> Vector3 {
+//     let roll_transform;
+//     let pitch_transform;
+//     let yaw_transform;
+// }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn createTestData(gx: f32, gy: f32, gz: f32, ax: f32, ay: f32, az: f32) -> SensorInput {
+        SensorInput {
+            angular_rate: MultiSensorData {
+                x: gx,
+                y: gy,
+                z: gz
+            },
+            acceleration: MultiSensorData {
+                x: ax,
+                y: ay,
+                z: az
+            },
+            magnetic_reading: None,
+            temperature: 0.0,
+            pressure: 0.0
+        }
+    }
+
+    #[test]
+    fn testSimpleData () {
+        let (tx, rx) : (Sender<SensorInput>, Receiver<SensorInput>) = channel();
+        let mut imu = IMU::new(rx);
+        let data = SensorInput {
+            angular_rate: MultiSensorData::zeros(),
+            acceleration: MultiSensorData {
+                x: 0.0,
+                y: 0.0,
+                z: 1.0
+            },
+            magnetic_reading: None,
+            temperature: 0.0,
+            pressure: 0.0
+        };
+        tx.send(data);
+        imu.read_data();
+        imu.compute_intertial_reference(1.0);
+        assert_eq!(imu.last_attitude.x, 0.0);
+        assert_eq!(imu.last_attitude.y, 0.0);
+        assert_eq!(imu.last_attitude.z, 0.0);
+    }
+
+    #[test]
+    fn testMovingData () {
+        let (tx, rx) : (Sender<SensorInput>, Receiver<SensorInput>) = channel();
+        let mut imu = IMU::new(rx);
+        // 
+        let data1 = createTestData(-1.09, -0.25, 4.64, 0.19, -0.01, 0.78);
+        let data2 = createTestData(-0.17,  0.26, 4.78, 0.2, 0.0, 0.78);
+        let data3 = createTestData(-0.67, 0.12, 4.86, 0.2, -0.01, 0.74);
+        let data4 = createTestData(-0.8, 0.29, 4.78,  0.21, 0, 0.76);
+        tx.send(data);
+        imu.read_data();
+        imu.compute_intertial_reference(3.39);
+        tx.send(data2);
+        imu.read_data();
+        imu.compute_intertial_reference(0.3);
+        tx.send(data3);
+        imu.read_data();
+        imu.compute_intertial_reference(0.1);
+        tx.send(data4);
+        imu.read_data();
+        imu.compute_intertial_reference(0.1);
+        
+        assert_eq!(imu.last_attitude.x, 0.0);
+        assert_eq!(imu.last_attitude.y, 0.0);
+        assert_eq!(imu.last_attitude.z, 0.0);
+    }
+}

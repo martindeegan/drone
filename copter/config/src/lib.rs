@@ -101,7 +101,7 @@ pub struct Config {
     pub motor_frequency: u32,
     pub sensor_sample_frequency: u32,
     pub imu_frequency: u32,
-    pub pid_frequency: u32
+    pub pid_frequency: u32,
 }
 
 impl Config {

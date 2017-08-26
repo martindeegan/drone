@@ -18,6 +18,9 @@ impl Altitude {
     }
 
     pub fn get_mid_level(&mut self, current_altitude: f32, desired_altitude: f32, climb: Option<f32>) -> f32 {
+        // let proportional = desired_altitude - current_altitude;
+        // let derivative = last_altitude - current_altitude;
+
         0.0
     }
 }

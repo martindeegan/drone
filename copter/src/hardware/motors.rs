@@ -13,10 +13,6 @@ use std::io::Write;
 use ansi_term::Colour::*;
 use time;
 
-use sensors::GyroSensorData;
-use sensors::start_sensors;
-use sensors::SensorOutput;
-
 use connection::InputStream;
 use config::Config;
 use debug_server;
@@ -41,13 +37,18 @@ pub fn terminate_all_motors() {
 
 pub struct MotorManager {
     pub motors: Vec<u32>,
-    motors_on: bool
+    motors_on: bool,
+    pub last_m1: u32,
+    pub last_m2: u32,
+    pub last_m3: u32,
+    pub last_m4: u32    
 }
 
 impl MotorManager {
     pub fn new() -> MotorManager {
         let config = Config::new();
-        let mm = MotorManager { motors: config.motors.clone(), motors_on: config.motors_on };
+        let mm = MotorManager { motors: config.motors.clone(), motors_on: config.motors_on, 
+                                last_m1: 0, last_m2: 0, last_m3: 0, last_m4: 0  };
         mm.initialize();
         mm
     }
@@ -95,7 +96,12 @@ impl MotorManager {
         self.motors.push(gpio_pin);
     }
 
-    pub fn set_powers(&self, m1: f32, m2: f32, m3: f32, m4: f32) {
+    pub fn set_powers(&mut self, m1: f32, m2: f32, m3: f32, m4: f32) {
+        self.last_m1 = m1 as u32;
+        self.last_m2 = m2 as u32;
+        self.last_m3 = m3 as u32;
+        self.last_m4 = m4 as u32;
+
         if self.motors_on {
             set_power(self.motors[0], m1 as u32);
             set_power(self.motors[1], m2 as u32);
@@ -111,7 +117,6 @@ impl MotorManager {
 impl std::ops::Drop for MotorManager {
     fn drop(&mut self) {
         self.terminate();
-        terminate();
     }
 }
 
@@ -146,7 +151,7 @@ pub fn calibrate() {
     stdin().read_line(&mut input).expect("Error");
 
     for motor in config.motors.clone() {
-//        pwm(motor, 2000).unwrap();
+       pwm(motor, 2000).unwrap();
     }
 
     println!("{}", Green.paint("[Motors]: Plug in the battery now. Then press enter."));
@@ -157,7 +162,7 @@ pub fn calibrate() {
     input = String::new();
     stdin().read_line(&mut input).expect("Error");
     for motor in config.motors.clone() {
-//        pwm(motor, 1000).unwrap();
+       pwm(motor, 1000).unwrap();
     }
 
     sleep(Duration::from_secs(4));

@@ -46,10 +46,10 @@ impl PID {
         error.y = proportional.y * self.pitch_kp + self.integral.y * self.pitch_ki + derivative.y * self.pitch_kd;
 
         let (mut m1, mut m2, mut m3, mut m4) = (mid_level, mid_level, mid_level, mid_level);
-        m1 = (0.0 + error.x - error.y) / 2.0;
-        m2 = (0.0 + error.x + error.y) / 2.0;
-        m3 = (0.0 - error.x + error.y) / 2.0;
-        m4 = (0.0 - error.x - error.y) / 2.0;
+        m1 = (0.0 - error.x - error.y) / 2.0;
+        m2 = (0.0 - error.x + error.y) / 2.0;
+        m3 = (0.0 + error.x + error.y) / 2.0;
+        m4 = (0.0 + error.x - error.y) / 2.0;
 
         m1 += mid_level;
         m2 += mid_level;

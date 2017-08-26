@@ -20,6 +20,19 @@ use std::collections::VecDeque;
 
 pub type MultiSensorData = Vec3;
 
+// pub trait Vec3_{
+//     fn magnitude(&self) -> f32;
+// }
+
+// impl<T> Vec3_ for T 
+//     where T: Vec3 
+// {
+//     fn magnitude(&self) -> f32 {
+//         (self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
+//     }
+// }
+
+
 pub struct SensorInput {
     pub angular_rate: MultiSensorData,
     pub acceleration: MultiSensorData,
@@ -145,11 +158,6 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
         let calibs = SensorCalibrations::new();
         let (mut gyro_calib, mut accel_calib) = (Vec3 { x: calibs.gyro_x, y: calibs.gyro_y, z: calibs.gyro_z }, Vec3 { x: calibs.accel_x, y: calibs.accel_y, z: calibs.accel_z });
 
-        // let average_alpha = 0.005;
-        let mut yaw_average = gyro_calib.z;
-        let mut yaw_deque: VecDeque<f32> = VecDeque::new();
-        let deque_size = 100;
-
         loop {
             let start_time = PreciseTime::now();
 
@@ -163,13 +171,7 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
 
             match gyroscope.borrow_mut().angular_rate_reading() {
                 Ok(angular_rate) => {
-                    yaw_average += angular_rate.z / (deque_size as f32);
-                    yaw_deque.push_back(angular_rate.z);
-                    if yaw_deque.len() > deque_size {
-                        yaw_average -= yaw_deque.pop_front().unwrap() / (deque_size as f32);
-                    }
                     input.angular_rate = angular_rate - gyro_calib;
-                    input.angular_rate.y *= -1.0;
                 },
                 Err(e) => {}
             }
