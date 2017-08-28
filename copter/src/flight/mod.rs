@@ -40,16 +40,21 @@ pub fn start_flight() -> (Sender<FlightMode>, thread::JoinHandle<()>) {
     let mut mid_level: f32 = 1000.0;
     let mut start_altitude = 0.0;
     let logging = config.logging;
+    let loop_time = 1000000.0 / config.sensor_sample_frequency as f32;
+    let power_diff = take_off_max - start_power;
+    let take_off_time = config.take_off_time * 1000000.0;
+    let loops_to_run = take_off_time / loop_time;
+    let ramp_amount = power_diff / loops_to_run;
 
     let control_thread = thread::Builder::new().name("Flight Thread.".to_string()).spawn(move || {
         println!("[Flight]: Starting control loop");
-        control_loop(&mode_rx, logging, take_off_max as f32, start_power as f32);
+        control_loop(&mode_rx, logging, take_off_max as f32, start_power, ramp_amount);
     });
 
     (mode_tx, control_thread.unwrap())
 }
 
-fn control_loop(mode_rx: &Receiver<FlightMode>, logging: bool, take_off_max: f32, take_off_start: f32) {
+fn control_loop(mode_rx: &Receiver<FlightMode>, logging: bool, take_off_max: f32, take_off_start: f32, ramp_amount: f32) {
     let mut flight_mode = FlightMode::Off;
 
     // Initialize all parts of control loop
@@ -67,6 +72,8 @@ fn control_loop(mode_rx: &Receiver<FlightMode>, logging: bool, take_off_max: f32
     let sleep_time = _Duration::new(0, 1000000000 / 400);
     let mut last_time = PreciseTime::now();
 
+    imu.read_data();
+
     'control: loop {
         let current_time = PreciseTime::now();
         let dt = (last_time.to(current_time).num_microseconds().unwrap() as f32) / 1000000.0;
@@ -76,13 +83,14 @@ fn control_loop(mode_rx: &Receiver<FlightMode>, logging: bool, take_off_max: f32
         // Get IMU data
         imu.read_data();
         imu.compute_intertial_reference(dt);
+
         println!("Roll: {roll:+06.*}, Pitch: {pitch:+06.*}, Yaw: {yaw:+06.*}, dt: {time:.*}", 2, 2, 2, 8, roll=imu.last_attitude.x, pitch=imu.last_attitude.y, yaw=imu.last_attitude.z, time=dt);
         println!("Alt: {:.*}", 2, imu.last_altitude);
         match flight_mode {
             FlightMode::Shutdown => { break 'control; },
             FlightMode::Off => { },
             FlightMode::TakeOff => {
-                handle_take_off(&imu, &mut mid_level, &mut flight_mode, &mut motor_manager, &mut pid_controller, take_off_max, dt);
+                handle_take_off(&imu, &mut mid_level, &mut flight_mode, &mut motor_manager, &mut pid_controller, take_off_max, ramp_amount, dt);
             }
             FlightMode::Landing => {
                 handle_landing(&imu, &mut mid_level, &mut flight_mode, &mut motor_manager, &mut pid_controller, dt);
@@ -104,10 +112,12 @@ fn control_loop(mode_rx: &Receiver<FlightMode>, logging: bool, take_off_max: f32
     }
 }
 
-fn handle_take_off(imu: &IMU, mid_level: &mut f32, flight_mode: &mut FlightMode, motor_manager: &mut MotorManager, pid_controller: &mut PID, take_off_max: f32, dt: f32) {
+fn handle_take_off(imu: &IMU, mid_level: &mut f32, flight_mode: &mut FlightMode, motor_manager: &mut MotorManager, pid_controller: &mut PID, take_off_max: f32, ramp_amount: f32, dt: f32) {
     if *mid_level < take_off_max as f32 {
-        *mid_level += 1.5;
-    }
+        *mid_level += ramp_amount;
+    } //else {
+        // pid_controller.integral_on = true;
+    // }
 
     let attitude = imu.last_attitude;
     let angular_rate = imu.last_angular_rate;
@@ -119,7 +129,7 @@ fn handle_take_off(imu: &IMU, mid_level: &mut f32, flight_mode: &mut FlightMode,
 
 fn handle_landing(imu: &IMU, mid_level: &mut f32, flight_mode: &mut FlightMode, motor_manager: &mut MotorManager, pid_controller: &mut PID, dt: f32) {
     if *mid_level > 1000.0 {
-        *mid_level -= 0.2;
+        *mid_level -= 0.085;
     } else {
         *flight_mode = FlightMode::Off;
     }
@@ -161,7 +171,6 @@ fn check_flight_mode(mode_rx: &Receiver<FlightMode>, flight_mode: &mut FlightMod
                     println!("[Flight]: Set Navigation Mode.");
                 },
             }
-            
             *flight_mode = new_mode;
         },
         Err(e) => {}
