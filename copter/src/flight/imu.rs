@@ -20,6 +20,7 @@ pub fn magnitude(vector: MultiSensorData) -> f32 {
 }
 
 const RADIAN_TO_DEGREES: f32 = 180.0 / PI;
+const DEGREE_TO_RADIAN: f32 = 1.0 / RADIAN_TO_DEGREES;
 
 pub struct AttitudeOutput {
     current_attitude: Option<MultiSensorData>,
@@ -54,7 +55,7 @@ pub struct IMU {
 
 impl IMU {
     pub fn new(sensor_stream: Receiver<SensorInput>) -> IMU {
-        IMU {
+        let mut imu = IMU {
             input_rx: sensor_stream,
             last_angular_rate: MultiSensorData::zeros(),
             last_acceleration: MultiSensorData::zeros(),
@@ -66,13 +67,20 @@ impl IMU {
             last_altitude: 0.0,
             tracking: false,
             relative_location: MultiSensorData::zeros(),
-            north_reading: MultiSensorData { x: -0.37, y: 0.0, z: 0.6 },
+            north_reading: MultiSensorData::zeros(),
+        };
+        #[cfg(not(test))]
+        for i in 0..10 {
+            imu.read_data();
         }
+        imu.north_reading = imu.last_magnetic_reading;
+        imu
     }
 
     pub fn read_data(&mut self) {
         match self.input_rx.recv() {
             Ok(input) => {
+                println!("Received data!");
                 self.last_angular_rate = input.angular_rate;
                 self.last_acceleration = input.acceleration;
                 if input.magnetic_reading.is_some() {
@@ -104,20 +112,11 @@ impl IMU {
         self.compute_position();
     }
 
-     // "motors": [26, 19, 16, 20],
-     // 143 -57g
-     // 126
-     // s128
-     // 126
-
-     //53g
-     //
-
     fn compute_attitude(&mut self, dt: f32) {
-
+        let alpha = 1.0;
         // Trig calculations
-        let s_roll = self.last_attitude.x.sin(); let c_roll = self.last_attitude.x.cos();
-        let s_pitch = self.last_attitude.y.sin(); let c_pitch = self.last_attitude.y.cos();
+        // let s_roll = self.last_attitude.x.sin(); let c_roll = self.last_attitude.x.cos();
+        // let s_pitch = self.last_attitude.y.sin(); let c_pitch = self.last_attitude.y.cos();
 
         // Estimate
         self.last_attitude = self.last_attitude + self.last_angular_rate * dt;
@@ -126,30 +125,20 @@ impl IMU {
         let A_x = self.last_acceleration.x;
         let A_y = self.last_acceleration.y;
         let A_z = self.last_acceleration.z;
+        // Rotation about the x axis
         let roll = A_y.atan2(A_z) * RADIAN_TO_DEGREES;
+        // Rotation about the y axis
         let pitch = A_x.atan2((A_y * A_y + A_z * A_z).sqrt()) * RADIAN_TO_DEGREES * -1.0;
 
-        let M_x = self.last_magnetic_reading.x; let M_y = self.last_magnetic_reading.y; let M_z = self.last_magnetic_reading.z; 
-        let mx_ = self.north_reading.x / (self.north_reading.x * self.north_reading.x + self.north_reading.y * self.north_reading.y);
-        let my_ = self.north_reading.y / (self.north_reading.x * self.north_reading.x + self.north_reading.y * self.north_reading.y);
+        let estimated_attitude = Attitude {
+            x: roll * alpha + self.last_attitude.x * (1.0 - alpha),
+            y: pitch * alpha + self.last_attitude.y * (1.0 - alpha),
+            z: 0.0,
+        };
 
-        let yaw_num = M_x * my_ * c_pitch + M_y * (my_ * s_pitch * s_roll - mx_ * c_roll) + M_z * (my_ * c_roll * s_pitch + mx_ * s_roll);
-        let yaw_den = M_x * mx_ * c_pitch + M_y * (mx_ * s_roll * s_pitch + my_ * c_roll) + M_z * (mx_ * c_roll * s_pitch + my_ * s_roll);
-
-        let yaw = yaw_num.atan2(yaw_den) * RADIAN_TO_DEGREES * -1.0;
-        // println!("Last angular rate: {:?}, {:?}, {:?}", self.last_angular_rate.x, self.last_angular_rate.y, self.last_angular_rate.z);
-
-        // let magnitude = magnitude(self.last_acceleration);
-        // let pitch = (self.last_acceleration.x / magnitude).asin() * RADIAN_TO_DEGREES;
-        // let roll = self.last_acceleration.y.atan2(self.last_acceleration.z) * RADIAN_TO_DEGREES;
-
-        // let A_yaw = self.last_attitude.y.cos() * self.last_magnetic_reading.x - 
-        //           self.last_attitude.x.sin() * self.last_attitude.y.sin() * self.last_magnetic_reading.y - 
-        //           self.last_attitude.x.cos() * self.last_attitude.y.sin() * self.last_magnetic_reading.z;           
-        // let B_yaw = self.last_attitude.x.cos() * self.last_magnetic_reading.y - self.last_attitude.x.sin() * self.last_magnetic_reading.z;
-        // let yaw = (self.north_reading.x * (A_yaw + B_yaw)).atan2(self.north_reading.y * (A_yaw - B_yaw)) * RADIAN_TO_DEGREES;
-
-        let alpha = 0.02;
+        let yaw = compute_yaw(estimated_attitude, self.north_reading, self.last_magnetic_reading);
+        println!("yaw: {:?}", yaw);
+        
         self.last_attitude = self.last_attitude * (1.0 - alpha) + Attitude { x: roll, y: pitch, z: yaw } * alpha;
     }
 
@@ -164,23 +153,31 @@ impl IMU {
     }
 }
 
-// impl Into<Vector3> for MultiSensorData {
-//     fn into(self) -> Vector3 {
+fn linearalgebrize(vec3: MultiSensorData) -> Vector3<f32> {
+    Vector3::new(vec3.x, vec3.y, vec3.z)
+}
 
-//     }
-// }
+fn compute_yaw(attitude: Attitude, current_magnetic_reading: MultiSensorData, original_magnetic_reading: MultiSensorData) -> f32 {
+    let attitude_rad = attitude * DEGREE_TO_RADIAN;
+    let m_prime_x = original_magnetic_reading.x * attitude_rad.y.cos() + original_magnetic_reading.y * attitude_rad.x.sin() * attitude_rad.y.sin() + original_magnetic_reading.z * attitude_rad.x.cos() * attitude_rad.y.sin();
+    let m_prime_y = original_magnetic_reading.y * attitude_rad.x.cos() - original_magnetic_reading.z * attitude_rad.x.sin();
+    (-current_magnetic_reading.x * m_prime_y + current_magnetic_reading.y * m_prime_x).atan2(current_magnetic_reading.y * m_prime_y + current_magnetic_reading.x * m_prime_x) * RADIAN_TO_DEGREES
+}
 
-// fn world_space_to_drone_space(vector: Vector3, attitude: Attitude) -> Vector3 {
-//     let roll_transform;
-//     let pitch_transform;
-//     let yaw_transform;
-// }
+fn compute_yaw_robert(attitude: Attitude, m: MultiSensorData, original_magnetic_reading: MultiSensorData) -> f32 {
+    let attitude_rad = attitude * DEGREE_TO_RADIAN;
+    let x_y_magnitude = (original_magnetic_reading.x * original_magnetic_reading.x + original_magnetic_reading.y * original_magnetic_reading.y);
+    let m_prime_x = original_magnetic_reading.x / x_y_magnitude;
+    let m_prime_y = original_magnetic_reading.y / x_y_magnitude;
 
-// fn drone_space_to_world_space(vector: Vector3, attitude: Attitude) -> Vector3 {
-//     let roll_transform;
-//     let pitch_transform;
-//     let yaw_transform;
-// }
+    let sin_theta = attitude.y.sin();
+    let cos_theta = attitude.y.cos();
+    let sin_phi = attitude.y.sin();
+    let cos_phi = attitude.y.sin();
+
+    let top = m.x * m_prime_y * cos_theta + m.y * (m_prime_y * sin_phi * sin_theta - m_prime_x * cos_phi) + m.z * (m_prime_y * cos_phi * sin_theta + m_prime_x * sin_phi);
+    let bottom = m.x * m_prime_x * cos_theta + m.y * (m_prime_x * sin_phi * sin_theta + m_prime_y * cos_phi) + m.z * ( m_prime_x * cos_phi * sin_theta - m_prime_y * sin_phi);
+    top.atan2(bottom) * RADIAN_TO_DEGREES
 
 #[cfg(test)]
 mod tests {
@@ -228,29 +225,209 @@ mod tests {
     }
 
     #[test]
-    fn testMovingData () {
+    fn testFlushAllSensorData() {
         let (tx, rx) : (Sender<SensorInput>, Receiver<SensorInput>) = channel();
         let mut imu = IMU::new(rx);
-        // 
-        let data1 = createTestData(-1.09, -0.25, 4.64, 0.19, -0.01, 0.78);
-        let data2 = createTestData(-0.17,  0.26, 4.78, 0.2, 0.0, 0.78);
-        let data3 = createTestData(-0.67, 0.12, 4.86, 0.2, -0.01, 0.74);
-        let data4 = createTestData(-0.8, 0.29, 4.78,  0.21, 0, 0.76);
-        tx.send(data);
-        imu.read_data();
-        imu.compute_intertial_reference(3.39);
+        let data1 = createTestData(1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+        let data2 = createTestData(2.0, 2.0, 2.0, 2.0, 2.0, 2.0);
+        tx.send(data1);
         tx.send(data2);
         imu.read_data();
-        imu.compute_intertial_reference(0.3);
-        tx.send(data3);
-        imu.read_data();
-        imu.compute_intertial_reference(0.1);
-        tx.send(data4);
-        imu.read_data();
-        imu.compute_intertial_reference(0.1);
         
+        assert_eq!(imu.last_angular_rate.x, 2.0);
+        assert_eq!(imu.last_angular_rate.y, 2.0);
+        assert_eq!(imu.last_angular_rate.z, 2.0);
+    }
+
+    #[test]
+    fn testMovingGyroData () {
+        let (tx, rx) : (Sender<SensorInput>, Receiver<SensorInput>) = channel();
+        let mut imu = IMU::new(rx);
+        
+        let alpha = 0.02;
+        let first_tilt = 20.0;
+        let data1 = createTestData(first_tilt, first_tilt, first_tilt, 0.0, 0.0, 1.0);
+
+        tx.send(data1);
+        imu.read_data();
+        imu.compute_intertial_reference(1.0);
+        assert_eq!(imu.last_attitude.x, first_tilt * (1.0 - alpha));
+        assert_eq!(imu.last_attitude.y, first_tilt * (1.0 - alpha));
+        assert_eq!(imu.last_attitude.z, first_tilt * (1.0 - alpha));
+
+        // Next data point. Even though we have tilted first_tilt deg, we are still pointing down according to the accelerometer readings. This isn't realistic.  Go figure!
+        let data2 = createTestData(0.5, 0.5, 0.5, 0.0, 0.0, 1.0);
+        tx.send(data2);
+        imu.read_data();
+        imu.compute_intertial_reference(0.5);
+        let new_angle = (first_tilt * (1.0 - alpha) + (0.5 * 0.5)) * (1.0 - alpha);
+
+        assert_eq!(imu.last_attitude.x, new_angle);
+        assert_eq!(imu.last_attitude.y, new_angle);
+        // TODO: Test this value.
+        // assert_eq!(imu.last_attitude.z, -2.3946);
+    }
+
+    #[test]
+    fn testMovingAccelerometerData () {
+        let (tx, rx) : (Sender<SensorInput>, Receiver<SensorInput>) = channel();
+        let mut imu = IMU::new(rx);
+        
+        let alpha = 0.02;
+        let tilt = 0.0;
+        let data1 = createTestData(tilt, tilt, tilt, 0.0, 0.0, 1.0);
+
+        tx.send(data1);
+        imu.read_data();
+        imu.compute_intertial_reference(1.0);
         assert_eq!(imu.last_attitude.x, 0.0);
         assert_eq!(imu.last_attitude.y, 0.0);
         assert_eq!(imu.last_attitude.z, 0.0);
+
+        // All of a suden, we are flipped 90 degrees!
+        let data2 = createTestData(tilt, tilt, tilt, -1.0, 0.0, 0.0);
+        tx.send(data2);
+        imu.read_data();
+        imu.compute_intertial_reference(0.5);
+
+        assert_eq!(imu.last_attitude.x, 0.0);
+        assert_eq!(imu.last_attitude.y, 90.0 * alpha);
+        assert_eq!(imu.last_attitude.z, 0.0);
+
+        imu.compute_intertial_reference(0.5);
+
+        assert_eq!(imu.last_attitude.x, 0.0);
+        assert_eq!(imu.last_attitude.y, (90.0 * alpha) * (1.0 - alpha) + 90.0 * alpha);
+        assert_eq!(imu.last_attitude.z, 0.0);
+
     }
+
+    #[test]
+    fn testYawComputationSimple () {
+        let original_magnetic_reading = MultiSensorData {
+            x: 1.0,
+            y: 0.0,
+            z: 0.0
+        };
+
+        let new_magnetic_reading = MultiSensorData {
+            x: 1.0,
+            y: 0.0,
+            z: 0.0
+        };
+
+        let current_rotation = Attitude {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0 // unused
+        };
+
+        assert_eq!(compute_yaw(current_rotation, new_magnetic_reading, original_magnetic_reading), 0.0);
+    }
+
+    #[test]
+    fn testYawComputationRotation () {
+        let original_magnetic_reading = MultiSensorData {
+            x: 1.0,
+            y: 0.0,
+            z: 0.0
+        };
+
+        let current_rotation = Attitude {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0 // unused
+        };
+
+        let new_magnetic_reading1= MultiSensorData {
+            x: 0.0,
+            y: 1.0,
+            z: 0.0
+        };
+
+        let new_magnetic_reading2 = MultiSensorData {
+            x: 0.0,
+            y: -1.0,
+            z: 0.0
+        };
+
+        let new_magnetic_reading3 = MultiSensorData {
+            x: -1.0,
+            y: 0.0,
+            z: 0.0
+        };        
+
+        assert_eq!(compute_yaw(current_rotation, new_magnetic_reading1, original_magnetic_reading), 90.0);
+        assert_eq!(compute_yaw(current_rotation, new_magnetic_reading2, original_magnetic_reading), -90.0);
+        assert_eq!(compute_yaw(current_rotation, new_magnetic_reading3, original_magnetic_reading).abs(), 180.0);
+    }
+
+    #[test]
+    fn testYawComputationRotationWithZ () {
+        let original_magnetic_reading = MultiSensorData {
+            x: 1.0,
+            y: 0.0,
+            z: 0.1
+        };
+
+        let current_rotation = Attitude {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0 // unused
+        };
+
+        let new_magnetic_reading1= MultiSensorData {
+            x: 0.0,
+            y: 1.0,
+            z: 0.1
+        };
+
+        let new_magnetic_reading2 = MultiSensorData {
+            x: 0.0,
+            y: -1.0,
+            z: 0.1
+        };
+
+        let new_magnetic_reading3 = MultiSensorData {
+            x: -1.0,
+            y: 0.0,
+            z: 0.1
+        };
+
+        let new_magnetic_reading4 = MultiSensorData {
+            x: 1.0,
+            y: 1.0,
+            z: 0.1
+        };
+
+        assert_eq!(compute_yaw(current_rotation, new_magnetic_reading1, original_magnetic_reading), 90.0);
+        assert_eq!(compute_yaw(current_rotation, new_magnetic_reading2, original_magnetic_reading), -90.0);
+        assert_eq!(compute_yaw(current_rotation, new_magnetic_reading3, original_magnetic_reading), 180.0);
+        assert_eq!(compute_yaw(current_rotation, new_magnetic_reading4, original_magnetic_reading), 45.0);
+    }
+
+    #[test]
+    fn testYawComputationRotation2 () {
+        let original_magnetic_reading = MultiSensorData {
+            x: 1.0,
+            y: 0.0,
+            z: 0.1
+        };
+
+        let current_rotation = Attitude {
+            x: 45.0,
+            y: 0.0,
+            z: 0.0 // unused
+        };
+
+        let new_magnetic_reading1 = MultiSensorData {
+            x: 0.0,
+            y: 1.0,
+            z: 0.1
+        };
+
+        assert_eq!(compute_yaw(current_rotation, new_magnetic_reading1, original_magnetic_reading), 90.0);
+    }
+
+    // TODO: Ideally, have an integration test that uses real world values.
 }
