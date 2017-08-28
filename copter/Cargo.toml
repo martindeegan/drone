@@ -6,7 +6,6 @@ authors = ["Thomas Deegan <tadeegan@gmail.com>", "Martin Deegan <mddeegan@gmail.
 [dependencies]
 rust-pigpio = "0.2.0"
 time = "0.1"
-sensors = {path = "./sensors", version = "0.1.0"}
 debug_server = {path = "./debug", version = "0.1.0"}
 protos = {path = "./protos"}
 config = {path = "./config"}

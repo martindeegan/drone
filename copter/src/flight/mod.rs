@@ -76,8 +76,8 @@ fn control_loop(mode_rx: &Receiver<FlightMode>, logging: bool, take_off_max: f32
         // Get IMU data
         imu.read_data();
         imu.compute_intertial_reference(dt);
-        println!("Roll: {roll:+06.*}, Pitch: {pitch:+06.*}, Yaw: {yaw:+06.*}, dt: {time:.*}", 2, 2, 2, 8, roll=imu.last_attitude.x, pitch=imu.last_attitude.y, yaw=imu.last_attitude.z, time=dt);
-        println!("Alt: {:.*}", 2, imu.last_altitude);
+        // println!("Roll: {roll:+06.*}, Pitch: {pitch:+06.*}, Yaw: {yaw:+06.*}, dt: {time:.*}", 2, 2, 2, 8, roll=imu.last_attitude.x, pitch=imu.last_attitude.y, yaw=imu.last_attitude.z, time=dt);
+        // println!("Alt: {:.*}", 2, imu.last_altitude);
         match flight_mode {
             FlightMode::Shutdown => { break 'control; },
             FlightMode::Off => { },
@@ -99,7 +99,7 @@ fn control_loop(mode_rx: &Receiver<FlightMode>, logging: bool, take_off_max: f32
             time += dt;
             send_log_data(&log_pipe, &imu, &motor_manager, time);
         }
-        
+
         last_time = current_time;
     }
 }
@@ -161,7 +161,7 @@ fn check_flight_mode(mode_rx: &Receiver<FlightMode>, flight_mode: &mut FlightMod
                     println!("[Flight]: Set Navigation Mode.");
                 },
             }
-            
+
             *flight_mode = new_mode;
         },
         Err(e) => {}

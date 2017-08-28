@@ -2,8 +2,7 @@ use hardware::sensors::{MultiSensorData,start_sensors,SensorInput};
 
 use std::sync::mpsc::{Sender, Receiver, channel};
 use std::f32::consts::PI;
-use na::{Vector3,Rotation};
-
+use na::core::{Matrix3,Vector3,Matrix2};
 // x: roll
 // y: pitch
 // z: yaw
@@ -47,7 +46,7 @@ pub struct IMU {
     tracking: bool,
     pub relative_location: MultiSensorData,
 
-    north_reading: MultiSensorData,
+    north_reading: Option<MultiSensorData>,
 }
 
 
@@ -66,7 +65,7 @@ impl IMU {
             last_altitude: 0.0,
             tracking: false,
             relative_location: MultiSensorData::zeros(),
-            north_reading: MultiSensorData { x: -0.37, y: 0.0, z: 0.6 },
+            north_reading: None,
         }
     }
 
@@ -77,6 +76,9 @@ impl IMU {
                 self.last_acceleration = input.acceleration;
                 if input.magnetic_reading.is_some() {
                     self.last_magnetic_reading = input.magnetic_reading.unwrap();
+                    if self.north_reading.is_none() {
+                        self.north_reading = Some(self.last_magnetic_reading);
+                    }
                 }
                 self.last_pressure = input.pressure;
             },
@@ -94,7 +96,7 @@ impl IMU {
                     self.last_pressure = input.pressure;
                 },
                 Err(e) => { break; }
-            }  
+            }
         }
     }
 
@@ -103,15 +105,6 @@ impl IMU {
         self.compute_altitude();
         self.compute_position();
     }
-
-     // "motors": [26, 19, 16, 20],
-     // 143 -57g
-     // 126
-     // s128
-     // 126
-
-     //53g
-     //
 
     fn compute_attitude(&mut self, dt: f32) {
 
@@ -129,23 +122,27 @@ impl IMU {
         let roll = A_y.atan2(A_z) * RADIAN_TO_DEGREES;
         let pitch = A_x.atan2((A_y * A_y + A_z * A_z).sqrt()) * RADIAN_TO_DEGREES * -1.0;
 
-        let M_x = self.last_magnetic_reading.x; let M_y = self.last_magnetic_reading.y; let M_z = self.last_magnetic_reading.z; 
-        let mx_ = self.north_reading.x / (self.north_reading.x * self.north_reading.x + self.north_reading.y * self.north_reading.y);
-        let my_ = self.north_reading.y / (self.north_reading.x * self.north_reading.x + self.north_reading.y * self.north_reading.y);
+        // let M_x = self.last_magnetic_reading.x; let M_y = self.last_magnetic_reading.y; let M_z = self.last_magnetic_reading.z;
+        // let mx_ = self.north_reading.x / (self.north_reading.x * self.north_reading.x + self.north_reading.y * self.north_reading.y);
+        // let my_ = self.north_reading.y / (self.north_reading.x * self.north_reading.x + self.north_reading.y * self.north_reading.y);
+        //
+        // let yaw_num = M_x * my_ * c_pitch + M_y * (my_ * s_pitch * s_roll - mx_ * c_roll) + M_z * (my_ * c_roll * s_pitch + mx_ * s_roll);
+        // let yaw_den = M_x * mx_ * c_pitch + M_y * (mx_ * s_roll * s_pitch + my_ * c_roll) + M_z * (mx_ * c_roll * s_pitch + my_ * s_roll);
+        //
+        // let yaw = yaw_num.atan2(yaw_den) * RADIAN_TO_DEGREES * -1.0;
 
-        let yaw_num = M_x * my_ * c_pitch + M_y * (my_ * s_pitch * s_roll - mx_ * c_roll) + M_z * (my_ * c_roll * s_pitch + mx_ * s_roll);
-        let yaw_den = M_x * mx_ * c_pitch + M_y * (mx_ * s_roll * s_pitch + my_ * c_roll) + M_z * (mx_ * c_roll * s_pitch + my_ * s_roll);
-
-        let yaw = yaw_num.atan2(yaw_den) * RADIAN_TO_DEGREES * -1.0;
+        if self.north_reading.is_some() {
+            compute_true_yaw(self.last_magnetic_reading, self.north_reading.unwrap(), self.last_attitude);
+        }
         // println!("Last angular rate: {:?}, {:?}, {:?}", self.last_angular_rate.x, self.last_angular_rate.y, self.last_angular_rate.z);
 
         // let magnitude = magnitude(self.last_acceleration);
         // let pitch = (self.last_acceleration.x / magnitude).asin() * RADIAN_TO_DEGREES;
         // let roll = self.last_acceleration.y.atan2(self.last_acceleration.z) * RADIAN_TO_DEGREES;
 
-        // let A_yaw = self.last_attitude.y.cos() * self.last_magnetic_reading.x - 
-        //           self.last_attitude.x.sin() * self.last_attitude.y.sin() * self.last_magnetic_reading.y - 
-        //           self.last_attitude.x.cos() * self.last_attitude.y.sin() * self.last_magnetic_reading.z;           
+        // let A_yaw = self.last_attitude.y.cos() * self.last_magnetic_reading.x -
+        //           self.last_attitude.x.sin() * self.last_attitude.y.sin() * self.last_magnetic_reading.y -
+        //           self.last_attitude.x.cos() * self.last_attitude.y.sin() * self.last_magnetic_reading.z;
         // let B_yaw = self.last_attitude.x.cos() * self.last_magnetic_reading.y - self.last_attitude.x.sin() * self.last_magnetic_reading.z;
         // let yaw = (self.north_reading.x * (A_yaw + B_yaw)).atan2(self.north_reading.y * (A_yaw - B_yaw)) * RADIAN_TO_DEGREES;
 
@@ -164,23 +161,52 @@ impl IMU {
     }
 }
 
-// impl Into<Vector3> for MultiSensorData {
-//     fn into(self) -> Vector3 {
+fn linearalgebraize(vec3: MultiSensorData) -> Vector3<f32> {
+    Vector3::new(vec3.x, vec3.y, vec3.z)
+}
 
-//     }
-// }
+fn compute_true_yaw(M: MultiSensorData, start_magnetic_reading: MultiSensorData, attitude: Attitude) -> f32 {
+    let sr = attitude.x.sin(); let cr = attitude.x.cos();
+    let sp = attitude.y.sin(); let cp = attitude.y.cos();
 
-// fn world_space_to_drone_space(vector: Vector3, attitude: Attitude) -> Vector3 {
-//     let roll_transform;
-//     let pitch_transform;
-//     let yaw_transform;
-// }
+    let roll_pitch_rotation_matrix = Matrix3::new(cp,  sr*sp,  cr*sp,
+                                                  0.0,    cr,   -1.0*sr,
+                                                  -sp, sr*cp,  cr*cp);
+    let M_n = linearalgebraize(start_magnetic_reading);
+    let M_ = roll_pitch_rotation_matrix * M_n;
 
-// fn drone_space_to_world_space(vector: Vector3, attitude: Attitude) -> Vector3 {
-//     let roll_transform;
-//     let pitch_transform;
-//     let yaw_transform;
-// }
+    let A = (M.y*M_.x - M.x*M_.y);
+    let B = (M.y*M_.y + M.x*M_.y);
+    let yaw = A.atan2(B) * RADIAN_TO_DEGREES;
+    // R_3 * M = M_
+    println!("{:?}", yaw);
+    yaw
+}
+
+fn world_space_to_drone_space(vector: Vector3<f32>, attitude: Attitude) -> Vector3<f32> {
+    // Compute Trig values for efficiency
+    let sr = attitude.x.sin(); let cr = attitude.x.cos();
+    let sp = attitude.y.sin(); let cp = attitude.y.cos();
+    let sy = attitude.z.sin(); let cy = attitude.z.cos();
+
+    let rotation_matrix = Matrix3::new(cp*cy,   -1.0*cr*sy + sr*sp*cy,    sr*sy + cr*sp*cy,
+                                       cp*sy,      cr*cy + sr*sp*sy,   -1.0*sr *cy + cr*sp*sy,
+                                       -1.0*sp,         sr*cp,                 cr*cp);
+
+    rotation_matrix * vector
+}
+
+fn drone_space_to_world_space(vector: Vector3<f32>, attitude: Attitude) -> Vector3<f32> {
+    let sr = attitude.x.sin(); let cr = attitude.x.cos();
+    let sp = attitude.y.sin(); let cp = attitude.y.cos();
+    let sy = attitude.z.sin(); let cy = attitude.z.cos();
+
+    let rotation_matrix = Matrix3::new(       cp*cy,                   cp*sy,          -1.0*sp,
+                                       -1.0*cr*sy + sr*sp*cy,    cr*cy + sr*sp*sy,     sr*cp,
+                                         sr*sy + cr*sp*cy,   -1.0*sr *cy + cr*sp*sy,   cr*cp);
+
+    rotation_matrix * vector
+}
 
 #[cfg(test)]
 mod tests {
@@ -231,7 +257,7 @@ mod tests {
     fn testMovingData () {
         let (tx, rx) : (Sender<SensorInput>, Receiver<SensorInput>) = channel();
         let mut imu = IMU::new(rx);
-        // 
+        //
         let data1 = createTestData(-1.09, -0.25, 4.64, 0.19, -0.01, 0.78);
         let data2 = createTestData(-0.17,  0.26, 4.78, 0.2, 0.0, 0.78);
         let data3 = createTestData(-0.67, 0.12, 4.86, 0.2, -0.01, 0.74);
@@ -248,7 +274,7 @@ mod tests {
         tx.send(data4);
         imu.read_data();
         imu.compute_intertial_reference(0.1);
-        
+
         assert_eq!(imu.last_attitude.x, 0.0);
         assert_eq!(imu.last_attitude.y, 0.0);
         assert_eq!(imu.last_attitude.z, 0.0);
