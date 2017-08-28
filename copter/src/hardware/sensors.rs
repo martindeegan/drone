@@ -172,6 +172,8 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
             match gyroscope.borrow_mut().angular_rate_reading() {
                 Ok(angular_rate) => {
                     input.angular_rate = angular_rate - gyro_calib;
+                    input.angular_rate.y *= -1.0;
+                    input.angular_rate.z *= -1.0;
                 },
                 Err(e) => {}
             }
@@ -179,6 +181,7 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
             match accelerometer.borrow_mut().acceleration_reading() {
                 Ok(acceleration) => {
                     input.acceleration = acceleration - accel_calib;
+                    input.acceleration.x *= -1.0;
                 },
                 Err(e) => {}
             }
