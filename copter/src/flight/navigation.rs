@@ -1,4 +1,6 @@
 use std::f32::consts::PI;
+use hardware::gps::{GPSData,get_gps};
+use std::sync::mpsc::Receiver;
 
 #[derive(Clone,Copy)]
 pub struct Destination {
@@ -41,11 +43,22 @@ pub fn lat_lon_bearing(mut curr_lat: f32, mut curr_lon: f32, mut dest_lat: f32, 
 }
 
 pub struct Navigator {
-
+    gps: Receiver<GPSData>
 }
 
 impl Navigator {
     pub fn new() -> Navigator {
-        Navigator {}
+        Navigator {
+            gps: get_gps()
+        }
+    }
+
+    pub fn get_location(&mut self) {
+        match self.gps.try_recv() {
+            Ok(data) => {
+                println!("{:?}", data);
+            },
+            Err(e) => {}
+        }
     }
 }

@@ -6,5 +6,4 @@ rs,toml
 .vscode/
 node_modules/
 out.txt
-
-
+*.key

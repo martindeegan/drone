@@ -1,19 +1,20 @@
 extern crate time;
-extern crate sensors;
 extern crate debug_server;
 extern crate protobuf;
 extern crate protos;
 extern crate config;
 extern crate ansi_term;
+extern crate nalgebra as na;
+extern crate typenum;
 
 use config::Config;
 
 mod hardware;
-// mod flight;
+mod flight;
 mod connection;
 
-use hardware::gps::get_gps;
-use hardware::sensors::*;
+use flight::{FlightMode,start_flight};
+use hardware::sensors::calibrate_sensors;
 
 // use flight::{FlightMode,start_flight};
 // use hardware::motors::MotorManager;
@@ -32,6 +33,9 @@ fn main() {
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
     match input.trim() {
+        "run_motors" => {
+
+        },
         "calibrate" => {
             hardware::motors::calibrate();
         },
@@ -40,55 +44,34 @@ fn main() {
             input = String::new();
             stdin().read_line(&mut input).expect("Error");
 
-            // calibrate_sensors();
+            calibrate_sensors();
         }
         _ => {
             start();
         }
     }
-
 }
 
 fn start() {
 
-    let (gyro_rx, accel_rx, mag_rx, thermo_rx, baro_rx) = start_sensors();
-    loop {
+    let (flight_mode_controller, control_thread_handler) = start_flight();
 
-        let angular_rate = gyro_rx.recv().unwrap();
-        let acceleration = accel_rx.try_recv().unwrap();
+    println!("{}", Green.paint("[Input]: Press enter to start the flight."));
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("Error");
 
-        println!("Omega: {:?}", angular_rate);
-        println!("Acceleration: {:?}", acceleration);
-        println!("Temp: {}, Press: {}", thermo_rx.try_recv().unwrap(), baro_rx.try_recv().unwrap());
+    flight_mode_controller.send(FlightMode::TakeOff);
 
-        // thread::sleep_ms(10);
-    }
+    println!("{}", Green.paint("[Input]: Press enter to stop the flight."));
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("Error");
 
-    // let motor_manager = MotorManager::new();
+    flight_mode_controller.send(FlightMode::Landing);
 
-    //
-    // let debug_pipe = debug_server::init_debug_port(config.debug_websocket_port);
-    // let mut motor_manager = MotorManager::new();
-    // for motor in config.motors.clone() {
-    //     motor_manager.new_motor(motor);
-    // }
-    //
-    // let stream = connection::connect_via_server(debug_pipe.clone());
-    //
-    // println!("{}", Green.paint("[Input]: Press enter to self control."));
-    // let mut input = String::new();
-    // stdin().read_line(&mut input).expect("Error");
-    // let (mut orientation_rx, mut location_rx) = start_sensors();
-    // motor_manager.start_pid_loop(config, stream, orientation_rx, debug_pipe.clone());
-    //
-    // println!("{}", Green.paint("[Input]: Press enter to stop."));
-    //
-    // let mut input = String::new();
-    // stdin().read_line(&mut input).expect("Error");
-    // match input {
-    //     _ => {
-    //         motor::terminate_all_motors(debug_pipe.clone());
-    //         std::process::exit(0);
-    //     }
-    // }
+    println!("{}", Green.paint("[Input]: Press enter to shutdown."));
+    let mut input = String::new();
+    stdin().read_line(&mut input).expect("Error");
+
+    flight_mode_controller.send(FlightMode::Shutdown);
+    control_thread_handler.join();
 }
