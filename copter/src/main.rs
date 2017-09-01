@@ -5,6 +5,7 @@ extern crate protos;
 extern crate config;
 extern crate ansi_term;
 extern crate nalgebra as na;
+extern crate typenum;
 
 use config::Config;
 
@@ -33,7 +34,7 @@ fn main() {
     stdin().read_line(&mut input).expect("Error");
     match input.trim() {
         "run_motors" => {
-            
+
         },
         "calibrate" => {
             hardware::motors::calibrate();

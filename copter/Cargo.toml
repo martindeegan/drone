@@ -7,8 +7,8 @@ authors = ["Thomas Deegan <tadeegan@gmail.com>", "Martin Deegan <mddeegan@gmail.
 rust-pigpio = "0.2.0"
 time = "0.1"
 debug_server = {path = "./debug", version = "0.1.0"}
-protos = {path = "./protos"}
-config = {path = "./config"}
+protos = { path = "./protos" }
+config = { path = "./config" }
 protobuf = "1.2.2"
 ansi_term = "0.9.0"
 i2csensors = "0.1.*"
@@ -18,8 +18,10 @@ i2cdev-l3gd20 = "0.1.*"
 i2cdev-lsm303d = "0.1.*"
 i2cdev-lsm9ds0 = "0.1.*"
 i2cdev = "0.3.1"
-unbounded-gpsd = "0.4.1"
+unbounded-gpsd = { path = "./unbounded-gpsd" }
+wifilocation = { path = "./wifilocation" }
 nalgebra = "0.13"
+typenum = "1.7.0"
 
 [[bin]]
 name = "drone"

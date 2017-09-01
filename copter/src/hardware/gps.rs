@@ -1,5 +1,6 @@
 use super::unbounded_gpsd::GpsdConnection;
 use super::unbounded_gpsd::types::{Response,TpvResponse};
+use super::wifilocation::{WifiGPS,get_towers,get_api_key_from_file};
 
 use std::sync::mpsc::{Sender,Receiver,channel};
 use std::thread;
@@ -34,21 +35,37 @@ impl GPSData {
 }
 
 pub fn get_gps() -> Receiver<GPSData> {
-    // let data = GPSData::zeros();
-
     let (gps_tx, gps_rx): (Sender<GPSData>, Receiver<GPSData>) = channel();
+
     thread::Builder::new().name("GPS Thread".to_string()).spawn(move || {
         let mut gps_connection = GpsdConnection::new("localhost:2947").unwrap();
         gps_connection.watch(true).unwrap();
         gps_connection.set_read_timeout(None).unwrap();
+        let mut wifi_gps = WifiGPS::new(get_api_key_from_file("./geolocation_api_key.key").unwrap());
 
         loop {
+            let mut data = GPSData::zeros();
             match get_location(&mut gps_connection) {
-                Some(data) => {
-                    gps_tx.send(data);
+                Some(gps_data) => {
+                    data = gps_data;
                 },
                 None => {}
             }
+            // let towers = get_towers();
+            // match wifi_gps.get_location(towers) {
+            //     Ok(wifi_data) => {
+            //         println!("Wifi data: {:?}", wifi_data);
+            //         data.latitude = wifi_data.location.lat;
+            //         data.longitude = wifi_data.location.lng;
+            //
+            //     },
+            //     Err(e) => {
+            //         println!("Error: {:?}", e);
+            //     }
+            // }
+
+            gps_tx.send(data);
+            thread::sleep_ms(100);
         }
     });
     gps_rx
@@ -59,7 +76,9 @@ fn get_location(gps_connection: &mut GpsdConnection) -> Option<GPSData> {
         Ok(response) => {
             return process_gps_response(response);
         },
-        Err(e) => None
+        Err(e) => {
+            return None;
+        }
     }
 }
 

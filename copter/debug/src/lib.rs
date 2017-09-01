@@ -105,6 +105,7 @@ fn start_port(server: &mut Server<NoTlsAcceptor>) -> Result<Client<TcpStream>,()
 pub struct Logger {}
 
 impl Logger {
+    //Return PID channel, Motor_channel, IMU channel, time channel
     pub fn new(on: bool) -> Sender<Signal> {
         let (tx,rx): (Sender<Signal>,Receiver<Signal>) = channel();
         if on {

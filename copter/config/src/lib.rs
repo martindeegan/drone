@@ -18,7 +18,19 @@ pub struct SensorCalibrations {
     pub gyro_z: f32,
     pub accel_x: f32,
     pub accel_y: f32,
-    pub accel_z: f32
+    pub accel_z: f32,
+    pub mag_ofs_x: f32,
+    pub mag_ofs_y: f32,
+    pub mag_ofs_z: f32,
+    pub mag_rot_11: f32,
+    pub mag_rot_12: f32,
+    pub mag_rot_13: f32,
+    pub mag_rot_21: f32,
+    pub mag_rot_22: f32,
+    pub mag_rot_23: f32,
+    pub mag_rot_31: f32,
+    pub mag_rot_32: f32,
+    pub mag_rot_33: f32,
 }
 
 impl SensorCalibrations {
@@ -31,7 +43,19 @@ impl SensorCalibrations {
                 gyro_z: 0.0,
                 accel_x: 0.0,
                 accel_y: 0.0,
-                accel_z:  0.0
+                accel_z:  0.0,
+                mag_ofs_x: 0.0,
+                mag_ofs_y: 0.0,
+                mag_ofs_z: 0.0,
+                mag_rot_11: 0.0,
+                mag_rot_12: 0.0,
+                mag_rot_13: 0.0,
+                mag_rot_21: 0.0,
+                mag_rot_22: 0.0,
+                mag_rot_23: 0.0,
+                mag_rot_31: 0.0,
+                mag_rot_32: 0.0,
+                mag_rot_33: 0.0,
             }
         }
         let mut contents = String::new();
@@ -42,7 +66,19 @@ impl SensorCalibrations {
                 gyro_z: 0.0,
                 accel_x: 0.0,
                 accel_y: 0.0,
-                accel_z:  0.0
+                accel_z:  0.0,
+                mag_ofs_x: 0.0,
+                mag_ofs_y: 0.0,
+                mag_ofs_z: 0.0,
+                mag_rot_11: 0.0,
+                mag_rot_12: 0.0,
+                mag_rot_13: 0.0,
+                mag_rot_21: 0.0,
+                mag_rot_22: 0.0,
+                mag_rot_23: 0.0,
+                mag_rot_31: 0.0,
+                mag_rot_32: 0.0,
+                mag_rot_33: 0.0,
             }
         }
         toml::from_str(contents.as_ref()).unwrap()
@@ -86,8 +122,9 @@ pub struct Config {
     pub integral_decay_time: f32,
     pub integral_bandwidth: f32,
     pub server_address: String,
-    pub hover_power: u32,
-    pub max_motor_speed: u32,
+    pub hover_power: f32,
+    pub max_motor_speed: f32,
+    pub take_off_time: f32,
     pub debug_websocket_port: i32,
     pub sea_level_pressure: f32,
     pub derivative_sampling: f32,
