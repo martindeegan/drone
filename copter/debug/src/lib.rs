@@ -14,9 +14,11 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
+extern crate time;
 
 use std::result::Result;
-
+use std::fs::{OpenOptions};
+use std::io::Write;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Axis {
@@ -32,13 +34,34 @@ pub struct Axis {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DebugInfo {
-    pub time: i64,
-    pub power: f32,
-    pub pidaxes: Axis
+    pub t: f32,
+    pub m1: u32,
+    pub m2: u32,
+    pub m3: u32,
+    pub m4: u32,
+    pub x_ang: f32,
+    pub y_ang: f32,
+    pub z_ang: f32,
+    pub x_p: f32,
+    pub x_i: f32,
+    pub x_d: f32,
+    pub y_p: f32,
+    pub y_i: f32,
+    pub y_d: f32,
+    pub x_ang_rate: f32,
+    pub y_ang_rate: f32,
+    pub z_ang_rate: f32,
+    pub x_accel: f32,
+    pub y_accel: f32,
+    pub z_accel: f32,
+    pub x_mag: f32,
+    pub y_mag: f32,
+    pub z_mag: f32,
 }
 
 pub enum Signal {
     Log(DebugInfo),
+    LogString(String),
     Stop
 }
 
@@ -79,38 +102,50 @@ fn start_port(server: &mut Server<NoTlsAcceptor>) -> Result<Client<TcpStream>,()
     }
 }
 
-pub fn init_debug_port(port : i32) -> Sender<Signal> {
-    let (tx, rx): (Sender<Signal>, Receiver<Signal>) = channel();
+pub struct Logger {}
 
-    thread::Builder::new().name("Debug Port".to_string()).spawn(move || {
-        let mut server = Server::bind(format!("0.0.0.0:{}", port)).unwrap();
-        let mut client: Client<TcpStream> = start_port(&mut server).unwrap();
-
-        //Debug loop
-        loop {
-            match rx.recv() {
-                Ok(Signal::Log(debug_info)) => {
-                    let msg_str = serde_json::to_string(&debug_info).unwrap();
-
-                    match client.send_message(&Message::text(msg_str.as_ref())) {
-                        Ok(()) => {},
-                        _ => {
-                            match start_port(&mut server) {
-                                Ok(c) => {
-                                    client = c;
+impl Logger {
+    //Return PID channel, Motor_channel, IMU channel, time channel
+    pub fn new(on: bool) -> Sender<Signal> {
+        let (tx,rx): (Sender<Signal>,Receiver<Signal>) = channel();
+        if on {
+            thread::spawn(move || {
+                let log_file_name = format!("logs/{}_{}_{}_{}_{}_{}_data.csv",
+                                            time::now().tm_year, time::now().tm_mon, time::now().tm_yday,
+                                            time::now().tm_hour, time::now().tm_min, time::now().tm_sec);
+                let mut log_file = OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .open(log_file_name).expect("Couldn't open or create new file");
+                'logloop: loop {
+                    match rx.try_recv() {
+                        Ok(debug_info) => {
+                            match debug_info {
+                                Signal::Log(log) => {
+                                    let out = format!("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n", format!("{:.*}", 4, log.t),
+                                                      log.m1, log.m2, log.m3, log.m4,
+                                                      format!("{:.*}", 2, log.x_ang), format!("{:.*}", 2, log.y_ang), format!("{:.*}", 2, log.z_ang),
+                                                      format!("{:.*}", 2, log.x_p), format!("{:.*}", 2, log.x_i), format!("{:.*}", 2, log.x_d),
+                                                      format!("{:.*}", 2, log.y_p), format!("{:.*}", 2, log.y_i), format!("{:.*}", 2, log.y_d),
+                                                      format!("{:.*}", 2, log.x_ang_rate), format!("{:.*}", 2, log.y_ang_rate), format!("{:.*}", 2, log.z_ang_rate),
+                                                      format!("{:.*}", 2, log.x_accel), format!("{:.*}", 2, log.y_accel), format!("{:.*}", 2, log.z_accel),
+                                                      format!("{:.*}", 2, log.x_mag), format!("{:.*}", 2, log.y_mag), format!("{:.*}", 2, log.z_mag));
+                                    log_file.write_all(out.as_bytes());
                                 },
-                                Err(()) => {}
+                                Signal::LogString(s) => {
+                                    log_file.write_all(s.as_bytes());
+                                },
+                                Signal::Stop => {
+                                    break 'logloop;
+                                }   
                             }
-                        }
+                        },
+                        Err(e) => {}
                     }
-                },
-                Ok(Signal::Stop) => {
-                    shutdown_port(&mut client).unwrap();
-                    break;
                 }
-                _ => {}
-            }
+            });
         }
-    });
-    tx.clone()
+        tx
+    }
 }

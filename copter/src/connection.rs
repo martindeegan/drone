@@ -17,7 +17,7 @@ use config::Config;
 
 use time::Duration;
 
-use motor;
+use hardware::motors;
 
 use protos::generated::controller_input::ControllerInput;
 use protobuf::core::parse_from_bytes;
@@ -143,7 +143,7 @@ impl Peer {
                                     }
                                 },
                                 2 => {
-                                    motor::terminate_all_motors(debug_pipe);
+                                    motors::terminate_all_motors();
                                     std::process::exit(0);
                                 },
                                 _ => {}
