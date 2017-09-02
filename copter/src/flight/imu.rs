@@ -46,8 +46,11 @@ pub struct IMU {
     // Dead reckoning
     tracking: bool,
     pub relative_location: MultiSensorData,
-    start_altitude: f32,
-    north_reading: MultiSensorData,
+    pub north_reading: MultiSensorData,
+
+    pub start_altitude: f32,
+    pub sea_level_pressure: f32,
+    pub yaw_offset: f32
 }
 
 
@@ -67,17 +70,17 @@ impl IMU {
             tracking: false,
             relative_location: MultiSensorData::zeros(),
             start_altitude: 0.0,
+            sea_level_pressure: 101.325,
             north_reading: MultiSensorData::zeros(),
+            yaw_offset: 0.0
         };
         #[cfg(not(test))]
         for i in 0..10 {
             imu.read_data();
-            imu.compute_altitude();
-            imu.start_altitude += imu.last_altitude;
+            imu.compute_intertial_reference(1.0);
         }
-        imu.start_altitude /= 10.0;
+
         imu.north_reading = imu.last_magnetic_reading;
-        println!("North reading: {:?}", imu.north_reading);
         imu
     }
 
@@ -146,29 +149,17 @@ impl IMU {
                          self.last_magnetic_reading.y * roll.cos() -
                          self.last_magnetic_reading.z * roll.sin() * pitch.cos();
 
-        let yaw = mag_y_comp.atan2(mag_x_comp) * RADIAN_TO_DEGREES;
+        let yaw = mag_y_comp.atan2(mag_x_comp) * RADIAN_TO_DEGREES - self.yaw_offset;
         self.last_attitude.z = yaw * yaw_alpha + self.last_attitude.z * (1.0 - yaw_alpha);
     }
 
     fn compute_altitude(&mut self) {
         let pressure = self.last_pressure * 1000.0;
         let sea_level_pa = 101.325 * 1000.0;
-        self.last_altitude = 44330. * (1. - (pressure / sea_level_pa).powf(0.1903));
+        self.last_altitude = 44330. * (1. - (pressure / sea_level_pa).powf(0.1903)) - self.start_altitude;
     }
 
     fn compute_position(&mut self, dt: f32) {
-        // let mut world_acceleration = drone_space_to_world_space(self.last_acceleration, self.last_attitude);
-        let mut world_acceleration = self.last_acceleration;
-        // Subtract gravity
-        world_acceleration = world_acceleration - MultiSensorData { x: 0.0, y: 0.0, z: 1.0 };
-        // Convert to m/s/s
-        world_acceleration = world_acceleration * 9.80665;
-        self.relative_location = self.relative_location + (world_acceleration * dt * dt);
-
-
-        let z_alpha = 0.5;
-        let relative_altitude = self.last_altitude - self.start_altitude;
-        self.relative_location.z = self.relative_location.z * (1.0 - z_alpha) + relative_altitude * z_alpha;
 
         // println!("{},{},{}", self.relative_location.x, self.relative_location.y, self.relative_location.z);
     }

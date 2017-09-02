@@ -55,9 +55,7 @@ impl Navigator {
 
     pub fn get_location(&mut self) {
         match self.gps.try_recv() {
-            Ok(data) => {
-                println!("{:?}", data);
-            },
+            Ok(data) => {},
             Err(e) => {}
         }
     }

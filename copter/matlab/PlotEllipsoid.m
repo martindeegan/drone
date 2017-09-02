@@ -1,6 +1,6 @@
 % combined_measurements = [measurements; old];
 % data = readings(:,1:3);
-data = measurements(:,1:3);
+data = noframe(:,1:3);
 [ofs,gain,rotM]=ellipsoid_fit(data(:,1:3));
 G = diag(1 ./ gain);
 P = rotM * G * rotM';

@@ -208,6 +208,7 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
             if count % magnetometer_counter == 0 {
                 match magnetometer.borrow_mut().magnetic_reading() {
                     Ok(mut magnetism) => {
+                        // println!("{:?}", magnetism);
                         magnetism = magnetism - Vec3 { x: -0.189575328870267, y: 0.0597052440863164, z: 0.0285933538364212 };;
                         magnetism.x = magnetism.x * 1.66314648899102 + magnetism.y * -0.0365578805671075 + magnetism.z * 0.0481109910962223;
                         magnetism.y = magnetism.x * -0.0365578805671075 + magnetism.y * 2.09504054789850 + magnetism.z * 0.0379828626601234;

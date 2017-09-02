@@ -110,7 +110,6 @@ pub struct Config {
     pub pitch_ki: f32,
     pub pitch_kd: f32,
     pub yaw_kp: f32,
-    pub yaw_ki: f32,
     pub yaw_kd: f32,
     pub alt_kp: f32,
     pub alt_ki: f32,

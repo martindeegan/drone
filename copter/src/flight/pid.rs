@@ -11,7 +11,6 @@ pub struct PID {
     pitch_ki: f32,
     pitch_kd: f32,
     yaw_kp: f32,
-    yaw_ki: f32,
     yaw_kd: f32,
     integral: MultiSensorData
 }
@@ -29,7 +28,6 @@ impl PID {
             pitch_ki: config.pitch_ki,
             pitch_kd: config.pitch_kd,
             yaw_kp: config.yaw_kp,
-            yaw_ki: config.yaw_ki,
             yaw_kd: config.yaw_kd,
             integral: MultiSensorData::zeros()
         }
@@ -38,12 +36,14 @@ impl PID {
     pub fn correct_attitude(&mut self, dt: f32, current_attitude: Attitude, current_angular_rate: MultiSensorData,
                             desired_attitude: Attitude, mid_level: f32) -> (f32, f32, f32, f32)
     {
+        // println!("derivative: {:?}", current_angular_rate);
+
         let proportional = current_attitude - desired_attitude;
         let derivative = current_angular_rate;
         self.integral = self.integral + proportional * dt;
 
         let mut error = MultiSensorData::zeros();
-        
+
         let ki = 0.0;
 
         // x: Roll, y: Pitch PID
@@ -62,7 +62,12 @@ impl PID {
         m4 += mid_level;
 
         // z: Yaw PID is added afterwards
-        error.z = proportional.z * self.yaw_kp + self.integral.z * self.yaw_ki + derivative.z * self.yaw_kd;
+        error.z = proportional.z * self.yaw_kp + derivative.z * self.yaw_kd;
+
+        m1 -= error.z;
+        m2 += error.z;
+        m3 -= error.z;
+        m4 += error.z;
 
         (m1, m2, m3, m4)
     }

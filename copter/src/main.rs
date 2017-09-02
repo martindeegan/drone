@@ -11,7 +11,7 @@ use config::Config;
 
 mod hardware;
 mod flight;
-mod connection;
+mod networking;
 
 use flight::{FlightMode,start_flight};
 use hardware::sensors::calibrate_sensors;

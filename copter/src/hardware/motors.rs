@@ -13,7 +13,7 @@ use std::io::Write;
 use ansi_term::Colour::*;
 use time;
 
-use connection::InputStream;
+use networking::p2p_connection::InputStream;
 use config::Config;
 use debug_server;
 
@@ -41,13 +41,13 @@ pub struct MotorManager {
     pub last_m1: u32,
     pub last_m2: u32,
     pub last_m3: u32,
-    pub last_m4: u32    
+    pub last_m4: u32
 }
 
 impl MotorManager {
     pub fn new() -> MotorManager {
         let config = Config::new();
-        let mm = MotorManager { motors: config.motors.clone(), motors_on: config.motors_on, 
+        let mm = MotorManager { motors: config.motors.clone(), motors_on: config.motors_on,
                                 last_m1: 0, last_m2: 0, last_m3: 0, last_m4: 0  };
         mm.initialize();
         mm

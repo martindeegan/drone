@@ -7,6 +7,7 @@ use std::thread;
 use std::ops::Drop;
 use std::io::Result;
 use std::string::String;
+use std::cmp::PartialEq;
 
 //Add wifi location?
 //https://crates.io/crates/wifilocation
@@ -34,6 +35,12 @@ impl GPSData {
     }
 }
 
+impl PartialEq for GPSData {
+    fn eq(&self, other: &GPSData) -> bool {
+        self.latitude == other.latitude && self.longitude == other.longitude && self.altitude == other.altitude && self.speed == other.speed && self.climb == other.climb && self.track == other.track
+    }
+}
+
 pub fn get_gps() -> Receiver<GPSData> {
     let (gps_tx, gps_rx): (Sender<GPSData>, Receiver<GPSData>) = channel();
 
@@ -51,20 +58,21 @@ pub fn get_gps() -> Receiver<GPSData> {
                 },
                 None => {}
             }
-            // let towers = get_towers();
-            // match wifi_gps.get_location(towers) {
-            //     Ok(wifi_data) => {
-            //         println!("Wifi data: {:?}", wifi_data);
-            //         data.latitude = wifi_data.location.lat;
-            //         data.longitude = wifi_data.location.lng;
-            //
-            //     },
-            //     Err(e) => {
-            //         println!("Error: {:?}", e);
-            //     }
-            // }
 
-            gps_tx.send(data);
+            let towers = get_towers();
+            match wifi_gps.get_location(towers) {
+                Ok(wifi_data) => {
+                    if wifi_data.accuracy < 10.0 {
+                        data.latitude = wifi_data.location.lat;
+                        data.longitude = wifi_data.location.lng;
+                    }
+                },
+                Err(e) => {}
+            }
+
+            if data != GPSData::zeros() {
+                gps_tx.send(data);
+            }
             thread::sleep_ms(100);
         }
     });

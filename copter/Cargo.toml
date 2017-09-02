@@ -22,6 +22,7 @@ unbounded-gpsd = { path = "./unbounded-gpsd" }
 wifilocation = { path = "./wifilocation" }
 nalgebra = "0.13"
 typenum = "1.7.0"
+reqwest = "0.7.3"
 
 [[bin]]
 name = "drone"
