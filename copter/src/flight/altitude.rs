@@ -1,6 +1,7 @@
 use config::Config;
 
 const MAX_DESCEND_RATE: f32 = -0.03;
+const MAX_ASCEND_RATE: f32 = 0.25;
 
 pub struct Altitude {
     alt_kp: f32,
@@ -26,7 +27,8 @@ impl Altitude {
     }
 
     pub fn get_mid_level(&mut self, current_altitude: f32, desired_altitude: f32, climb: Option<f32>, dt: f32) -> f32 {
-        let proportional = desired_altitude - current_altitude;
+        let mut proportional = desired_altitude - current_altitude;
+        proportional  = proportional * proportional * proportional;
         self.integral += proportional * dt;
         let derivative = (self.last_altitude - current_altitude) / dt;
 
@@ -38,6 +40,7 @@ impl Altitude {
         } else {
             self.last_mid_level += error;
         }
+
         self.last_mid_level
     }
 }

@@ -85,16 +85,16 @@ fn control_loop(mode_rx: &Receiver<FlightMode>, logging: bool, take_off_max: f32
         imu.compute_intertial_reference(dt);
         navigator.get_location();
 
-        // println!("Roll: {roll:+06.*}, Pitch: {pitch:+06.*}, Yaw: {yaw:+06.*}, dt: {time:.*}", 2, 2, 2, 8, roll=imu.last_attitude.x, pitch=imu.last_attitude.y, yaw=imu.last_attitude.z, time=dt);
-        println!("Alt: {:.*}, {}", 2, imu.last_altitude, imu.start_altitude);
+        println!("Roll: {roll:+06.*}, Pitch: {pitch:+06.*}, Yaw: {yaw:+06.*}, dt: {time:.*}", 2, 2, 2, 8, roll=imu.last_attitude.x, pitch=imu.last_attitude.y, yaw=imu.last_attitude.z, time=dt);
+        // println!("Alt: {:.*}, {}", 2, imu.last_altitude, imu.start_altitude);
         match flight_mode {
             FlightMode::Shutdown => { break 'control; },
             FlightMode::Off => { },
             FlightMode::TakeOff => {
-                handle_take_off(&imu, &mut mid_level, &mut flight_mode, &mut motor_manager, &mut pid_controller, &mut altitude_holder, take_off_max, ramp_amount, dt);
+                handle_take_off(&imu, &mut flight_mode, &mut motor_manager, &mut pid_controller, &mut altitude_holder, take_off_max, ramp_amount, dt);
             }
             FlightMode::Landing => {
-                handle_landing(&imu, &mut mid_level, &mut flight_mode, &mut motor_manager, &mut pid_controller, &mut altitude_holder, dt);
+                handle_landing(&imu, &mut flight_mode, &mut motor_manager, &mut pid_controller, &mut altitude_holder, dt);
             },
             FlightMode::Hold => {
                 handle_hold();
@@ -113,24 +113,24 @@ fn control_loop(mode_rx: &Receiver<FlightMode>, logging: bool, take_off_max: f32
     }
 }
 
-fn handle_take_off(imu: &IMU, mid_level: &mut f32, flight_mode: &mut FlightMode, motor_manager: &mut MotorManager, pid_controller: &mut PID, altitude_holder: &mut Altitude, take_off_max: f32, ramp_amount: f32, dt: f32) {
-    altitude_holder.get_mid_level(imu.last_altitude, 1.5, None, dt);
+fn handle_take_off(imu: &IMU, flight_mode: &mut FlightMode, motor_manager: &mut MotorManager, pid_controller: &mut PID, altitude_holder: &mut Altitude, take_off_max: f32, ramp_amount: f32, dt: f32) {
+    let mid_level = altitude_holder.get_mid_level(imu.last_altitude, 1.5, None, dt);
 
     let attitude = imu.last_attitude;
     let angular_rate = imu.last_angular_rate;
 
-    let (mut m1, mut m2, mut m3, mut m4) = pid_controller.correct_attitude(dt, attitude, angular_rate, Attitude::zeros(), *mid_level);
+    let (mut m1, mut m2, mut m3, mut m4) = pid_controller.correct_attitude(dt, attitude, angular_rate, Attitude::zeros(), mid_level);
 
     motor_manager.set_powers(m1, m2, m3, m4);
 }
 
-fn handle_landing(imu: &IMU, mid_level: &mut f32, flight_mode: &mut FlightMode, motor_manager: &mut MotorManager, pid_controller: &mut PID, altitude_holder: &mut Altitude, dt: f32) {
-    altitude_holder.get_mid_level(imu.last_altitude, 1.5, None, dt);
+fn handle_landing(imu: &IMU, flight_mode: &mut FlightMode, motor_manager: &mut MotorManager, pid_controller: &mut PID, altitude_holder: &mut Altitude, dt: f32) {
+    let mid_level = altitude_holder.get_mid_level(imu.last_altitude, -1.0, None, dt);
 
     let attitude = imu.last_attitude;
     let angular_rate = imu.last_angular_rate;
 
-    let (mut m1, mut m2, mut m3, mut m4) = pid_controller.correct_attitude(dt, attitude, angular_rate, Attitude::zeros(), *mid_level);
+    let (mut m1, mut m2, mut m3, mut m4) = pid_controller.correct_attitude(dt, attitude, angular_rate, Attitude::zeros(), mid_level);
 
     motor_manager.set_powers(m1, m2, m3, m4);
 }

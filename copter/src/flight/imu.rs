@@ -135,15 +135,17 @@ impl IMU {
         // Rotation about the x axis
         let mut roll = A_y.atan2(A_z) * RADIAN_TO_DEGREES;
         self.last_attitude.x = roll * alpha + self.last_attitude.x * (1.0 - alpha);
-        roll = self.last_attitude.x * DEGREE_TO_RADIAN * -1.0;
+        roll = self.last_attitude.x * DEGREE_TO_RADIAN;
 
         // Rotation about the y axis
-        let gz_2 = A_y * (self.last_attitude.x * DEGREE_TO_RADIAN).sin() + A_z * (self.last_attitude.x * DEGREE_TO_RADIAN).cos();
+        let gz_2 = A_y * (roll).sin() + A_z * (roll).cos();
         let mut pitch = A_x.atan2(gz_2) * -1.0 * RADIAN_TO_DEGREES;
         self.last_attitude.y = pitch * alpha + self.last_attitude.y * (1.0 - alpha);
         pitch = self.last_attitude.y * DEGREE_TO_RADIAN;
 
-        let yaw_alpha = 1.0;
+        roll *= -1.0;
+
+        let yaw_alpha = 0.5;
         let mag_x_comp = self.last_magnetic_reading.x * pitch.cos() + self.last_magnetic_reading.z * pitch.sin();
         let mag_y_comp = self.last_magnetic_reading.x * roll.sin() * pitch.sin() +
                          self.last_magnetic_reading.y * roll.cos() -

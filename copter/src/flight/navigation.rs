@@ -49,14 +49,11 @@ pub struct Navigator {
 impl Navigator {
     pub fn new() -> Navigator {
         Navigator {
-            gps: get_gps()
+
         }
     }
 
     pub fn get_location(&mut self) {
-        match self.gps.try_recv() {
-            Ok(data) => {},
-            Err(e) => {}
-        }
+        
     }
 }

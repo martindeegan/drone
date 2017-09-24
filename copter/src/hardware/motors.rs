@@ -19,8 +19,10 @@ use debug_server;
 
 // use sensor_manager::{InertialMeasurement,MultiSensorData};
 
+const MAX_VALUE_F: f32 = 2000.0;
+const MIN_VALUE_F: f32 = 980.0;
 const MAX_VALUE: u32 = 2000;
-const MIN_VALUE: u32 = 1000;
+const MIN_VALUE: u32 = 980;
 
 
 
@@ -96,17 +98,30 @@ impl MotorManager {
         self.motors.push(gpio_pin);
     }
 
-    pub fn set_powers(&mut self, m1: f32, m2: f32, m3: f32, m4: f32) {
+    pub fn set_powers(&mut self, mut m1: f32, mut m2: f32, mut m3: f32, mut m4: f32) {
+
+        let max = m1.max(m2).max(m3).max(m4);
+        let min = m1.min(m2).min(m3).min(m4);
+        if max > MAX_VALUE_F {
+            let diff = max - MAX_VALUE_F;
+            m1 -= diff; m2 -= diff; m3 -= diff; m4 -= diff;
+        } else if min < MIN_VALUE_F {
+            let diff = min - MIN_VALUE_F;
+            m1 -= diff; m2 -= diff; m3 -= diff; m4 -= diff;
+        }
+
         self.last_m1 = m1 as u32;
         self.last_m2 = m2 as u32;
         self.last_m3 = m3 as u32;
         self.last_m4 = m4 as u32;
 
+        println!("{},{},{},{}", self.last_m1, self.last_m2, self.last_m3, self.last_m4);
+
         if self.motors_on {
-            set_power(self.motors[0], m1 as u32);
-            set_power(self.motors[1], m2 as u32);
-            set_power(self.motors[2], m3 as u32);
-            set_power(self.motors[3], m4 as u32);
+            set_power(self.motors[0], self.last_m1);
+            set_power(self.motors[1], self.last_m2);
+            set_power(self.motors[2], self.last_m3);
+            set_power(self.motors[3], self.last_m4);
         }
         else {
             // println!("m1: {}, m2: {}, m3: {}, m4: {}", m1 as u32, m2 as u32, m3 as u32, m4 as u32);
@@ -185,7 +200,7 @@ pub fn calibrate() {
 
 fn arm(motor: u32) -> thread::JoinHandle<()> {
     thread::spawn(move || {
-        pwm(motor, 1200).unwrap();
+        pwm(motor, 1250).unwrap();
         sleep(Duration::from_secs(1));
         pwm(motor, MIN_VALUE).unwrap();
         sleep(Duration::from_secs(2));
@@ -193,12 +208,6 @@ fn arm(motor: u32) -> thread::JoinHandle<()> {
 }
 
 fn set_power(motor: u32, mut power: u32) {
-    if power > MAX_VALUE {
-        power = MAX_VALUE;
-    } else if power < MIN_VALUE {
-        power = MIN_VALUE;
-    }
-
     pwm(motor, power).unwrap();
 }
 
