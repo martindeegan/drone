@@ -1,7 +1,7 @@
 extern crate time;
 extern crate debug_server;
-extern crate protobuf;
-extern crate protos;
+// extern crate protobuf;
+// extern crate protos;
 extern crate config;
 extern crate ansi_term;
 extern crate nalgebra as na;
@@ -11,7 +11,7 @@ use config::Config;
 
 mod hardware;
 mod flight;
-mod networking;
+// mod networking;
 
 use flight::{FlightMode,start_flight};
 use hardware::sensors::calibrate_sensors;
