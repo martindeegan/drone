@@ -62,7 +62,25 @@ impl PID {
         m4 += mid_level;
 
         // z: Yaw PID is added afterwards
-        error.z = proportional.z * self.yaw_kp + derivative.z * self.yaw_kd;
+        // Need to compute error both ways and use minimum error
+        let yaw_p_1 = proportional.z;
+        let mut yaw_p_2 = 0.0;
+        if current_attitude.z < desired_attitude.z {
+            yaw_p_2 = yaw_p_1 - 360.0;
+        } else if current_attitude.z > desired_attitude.z {
+            yaw_p_2 = yaw_p_1 + 360.0;
+        }
+        let mut yaw_p = 0.0;
+        if yaw_p_1.abs() < yaw_p_2.abs() {
+            yaw_p = yaw_p_1;
+        } else {
+            yaw_p = yaw_p_2;
+        }
+
+        println!("Yaw: {:.*}, Yaw error: {:.*}", 3, current_attitude.z, 3, yaw_p);
+
+        error.z = yaw_p * self.yaw_kp + derivative.z * self.yaw_kd;
+        // println!("Yaw err: {}", yaw_p);
 
         m1 -= error.z;
         m2 += error.z;

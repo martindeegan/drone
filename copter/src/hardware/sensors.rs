@@ -165,6 +165,7 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
         let loop_duration = Duration::nanoseconds(sensor_poll_delay);
         let mut count = 0;
         let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) = get_sensors();
+        let gps = get_gps()
 
         let (mut gyro_calib, mut accel_calib, mut mag_ofs, calib_matrix) = read_calibration_values();
         loop {
@@ -183,11 +184,12 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
                     // let alpha = 0.00003;
                     // gyro_calib = gyro_calib * (1.0 - alpha) + angular_rate * alpha;
                     // println!("gyro calib: {:?}", gyro_calib);
-                    let alpha = 0.01;
-                    gyro_calib.z = gyro_calib.z * (1.0 - alpha) + angular_rate.z * alpha;
+                    let alpha = 0.005;
+                    gyro_calib = gyro_calib * (1.0 - alpha) + angular_rate * alpha;
                     input.angular_rate = angular_rate - gyro_calib;
                     input.angular_rate.y *= -1.0;
                     input.angular_rate.z *= -1.0;
+                    // println!("gyro: {:?}", input.angular_rate);
                 },
                 Err(e) => {}
             }
@@ -199,8 +201,9 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
                     acceleration.y = acceleration.x * 0.00662310660530371 + acceleration.y * 0.997902617513774 + acceleration.z * -0.00135008782991750;
                     acceleration.z = acceleration.x * -0.000510382093277452 + acceleration.y * -0.00135008782991756 + acceleration.z * 1.00418778375736;
 
-                    input.acceleration = acceleration - accel_calib;
+                    input.acceleration = acceleration;
                     input.acceleration.x *= -1.0;
+                    // println!("accel: {:?}", input.acceleration);
                 },
                 Err(e) => {}
             }
@@ -230,6 +233,11 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
                 Ok(pressure) => {
                     input.pressure = pressure;
                 },
+                Err(e) => {}
+            }
+
+            match self.gps.try_recv() {
+                Ok(data) => {},
                 Err(e) => {}
             }
 
