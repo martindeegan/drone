@@ -1,6 +1,11 @@
 # SafeFlight
 This project is a pure rust implementation of a quadcopter.
 
+##### Tuned PID:
+[![Tuned PID](http://img.youtube.com/vi/ZvyTtImR9pY/0.jpg)](https://www.youtube.com/watch?v=ZvyTtImR9pY)
+##### First Flight:
+[![First Flight!](http://img.youtube.com/vi/_O6T4tCpLQM/0.jpg)](https://www.youtube.com/watch?v=_O6T4tCpLQM)
+
 ## Features
 1) PID loop for drone stabilization
 2) Peer to peer communication
