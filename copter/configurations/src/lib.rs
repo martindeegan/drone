@@ -5,3 +5,6 @@ extern crate toml;
 
 mod config;
 mod calibrations;
+
+pub type Config = config::Config;
+pub type Calibrations = calibrations::Calibrations;

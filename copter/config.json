@@ -11,7 +11,12 @@
   "alt_ki": 0.0,
   "alt_kd": 0.0,
   "desired_angle": 0,
-  "motors": [26, 19, 16, 20],
+  "motors": [
+    26,
+    19,
+    16,
+    20
+  ],
   "motor_cutoff": 75.0,
   "motors_on": false,
   "integral_decay_time": 0.8,
@@ -24,7 +29,10 @@
   "sea_level_pressure": 1.01325,
   "derivative_sampling": 0.001,
   "integral_decay": 1.0,
-  "sensors": ["BMP280", "LSM9DS0"],
+  "sensors": [
+    "BMP280",
+    "LSM9DS0"
+  ],
   "angle_offset_x": 0.0,
   "angle_offset_y": -0.0,
   "logging": false,
