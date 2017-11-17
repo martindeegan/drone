@@ -20,7 +20,7 @@ unbounded-gpsd = "0.4.2"
 wifilocation = { path = "./third_party/wifilocation" }
 nalgebra = "0.13"
 typenum = "1.7.0"
-reqwest = "0.7.3"
+mqtt-protocol = "0.4"
 
 [[bin]]
 name = "drone"
