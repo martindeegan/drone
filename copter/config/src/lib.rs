@@ -1,8 +1,8 @@
 extern crate serde;
-extern crate serde_json;
-extern crate toml;
 #[macro_use]
 extern crate serde_derive;
+extern crate serde_json;
+extern crate toml;
 
 use std::vec::Vec;
 use std::fs::File;
@@ -43,7 +43,7 @@ impl SensorCalibrations {
                 gyro_z: 0.0,
                 accel_x: 0.0,
                 accel_y: 0.0,
-                accel_z:  0.0,
+                accel_z: 0.0,
                 mag_ofs_x: 0.0,
                 mag_ofs_y: 0.0,
                 mag_ofs_z: 0.0,
@@ -56,17 +56,20 @@ impl SensorCalibrations {
                 mag_rot_31: 0.0,
                 mag_rot_32: 0.0,
                 mag_rot_33: 0.0,
-            }
+            };
         }
         let mut contents = String::new();
-        if file.unwrap().read_to_string(&mut contents).expect("Failed to read sensors.toml") == 0 {
+        if file.unwrap()
+            .read_to_string(&mut contents)
+            .expect("Failed to read sensors.toml") == 0
+        {
             return SensorCalibrations {
                 gyro_x: 0.0,
                 gyro_y: 0.0,
                 gyro_z: 0.0,
                 accel_x: 0.0,
                 accel_y: 0.0,
-                accel_z:  0.0,
+                accel_z: 0.0,
                 mag_ofs_x: 0.0,
                 mag_ofs_y: 0.0,
                 mag_ofs_z: 0.0,
@@ -79,7 +82,7 @@ impl SensorCalibrations {
                 mag_rot_31: 0.0,
                 mag_rot_32: 0.0,
                 mag_rot_33: 0.0,
-            }
+            };
         }
         toml::from_str(contents.as_ref()).unwrap()
     }
@@ -90,11 +93,12 @@ impl SensorCalibrations {
             .read(true)
             .write(true)
             .create(true)
-            .open("sensors.toml").expect("Couldn't open or create new file");
+            .open("sensors.toml")
+            .expect("Couldn't open or create new file");
         println!("Values to write: {:?}", self);
         let toml = toml::to_string(&self).unwrap();
         println!("{}", toml);
-//        file.write(toml.as_bytes());
+        //        file.write(toml.as_bytes());
         file.write_all(toml.as_bytes());
     }
 }
