@@ -1,7 +1,5 @@
 extern crate time;
 extern crate debug_server;
-// extern crate protobuf;
-// extern crate protos;
 extern crate config;
 extern crate ansi_term;
 extern crate nalgebra as na;
