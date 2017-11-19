@@ -1,16 +1,19 @@
 use std::default::Default;
+use std::fs::File;
+use toml;
+use std::io::prelude::*;
 
 /*----- Flight -----*/
 
 #[derive(Debug, Deserialize, Serialize)]
-struct PID {
+pub struct PID {
     p: Option<f32>,
     i: Option<f32>,
     d: Option<f32>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct Flight {
+pub struct Flight {
     roll: PID,
     pitch: PID,
     yaw: PID,
@@ -26,21 +29,22 @@ enum SerialCommunication {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct Sensor {
+pub struct Sensor {
     name: String,
     update_rate: Option<i32>,
     serial: SerialCommunication,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct Motors {
+pub struct Motors {
     pins: Vec<u32>,
+    off: bool,
     serial_pwm: bool,
     serial: Option<SerialCommunication>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct Hardware {
+pub struct Hardware {
     gps: bool,
     wifi_gps: bool,
     barometer: Option<Sensor>,
@@ -54,7 +58,7 @@ struct Hardware {
 /*----- Networking -----*/
 
 #[derive(Debug, Deserialize, Serialize)]
-struct Networking {
+pub struct Networking {
     server_ip: String,
     server_port: i32,
 }
@@ -62,7 +66,7 @@ struct Networking {
 /*----- Debug -----*/
 
 #[derive(Debug, Deserialize, Serialize)]
-struct Debug {
+pub struct Debug {
     live_debugging: bool,
     debug_websocket_port: i32,
     logging: bool,
@@ -76,11 +80,28 @@ pub struct Config {
     debug: Debug,
 }
 
-// impl Config {
-//     pub fn func() {
-//         println!("Sups");
-//     }
-// }
+impl Config {
+    pub fn new() -> Result<Config, String> {
+        let mut config_file: File = match File::open("configuration/config.toml") {
+            Ok(file) => file,
+            Err(e) => {
+                println!("Couldn't open config.toml! Opening config_default.toml.");
+                File::open("configuration/config_default.toml").unwrap()
+            }
+        };
+
+        let mut config_string = String::new();
+        match config_file.read_to_string(&mut config_string) {
+            Ok(_size) => {}
+            Err(e) => return Err(e.to_string()),
+        };
+
+        match toml::from_str(config_string.as_ref()) {
+            Ok(cfg) => Ok(cfg),
+            Err(e) => Err(e.to_string()),
+        }
+    }
+}
 
 impl Default for Config {
     fn default() -> Config {

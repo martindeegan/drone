@@ -1,0 +1,8 @@
+[package]
+name = "logger"
+version = "0.1.0"
+authors = ["martindeegan <mdeegan@umich.edu>"]
+
+[dependencies]
+ansi_term = "0.9.0"
+time = "0.1"

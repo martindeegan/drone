@@ -1,0 +1,3 @@
+[submodule "copter/third_party/wifilocation"]
+	path = copter/third_party/wifilocation
+	url = git@github.com:martindeegan/wifilocation.git

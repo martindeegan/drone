@@ -7,14 +7,11 @@ use super::i2cdev::linux::{LinuxI2CDevice,LinuxI2CError};
 use super::i2cdev::core::I2CDevice;
 use super::i2csensors::*;
 
-use config::{Config,SensorCalibrations};
+use logger::{FlightLogger, ModuleLogger};
+use configurations::{Config,Calibrations};
+use rulinalg::vector::Vector;
 
 use time::{Duration,PreciseTime};
-
-use na::{Matrix3, Vector3, DMatrix};
-use na::linalg::QR;
-
-use ansi_term::Colour::*;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -40,11 +37,25 @@ pub type MultiSensorData = Vec3;
 
 
 pub struct SensorInput {
-    pub angular_rate: MultiSensorData,
-    pub acceleration: MultiSensorData,
-    pub magnetic_reading: Option<MultiSensorData>,
+    pub angular_rate: Vector,
+    pub acceleration: Vector,
+    pub magnetic_reading: Vector,
     pub temperature: f32,
     pub pressure: f32
+}
+
+pub struct SensorManager {
+    Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
+    Rc<RefCell<Thermometer<Error = LinuxI2CError>>>,
+    Rc<RefCell<Gyroscope<Error = LinuxI2CError>>>,
+    Rc<RefCell<Accelerometer<Error = LinuxI2CError>>>,
+    Rc<RefCell<Magnetometer<Error = LinuxI2CError>>>,
+}
+
+impl SensorManager {
+    pub fn new() -> SensorManager {
+        
+    }
 }
 
 fn get_sensors() -> (Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
