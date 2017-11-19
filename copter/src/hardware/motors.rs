@@ -10,21 +10,119 @@ use std::f32;
 use std::io::stdin;
 use std::io::Write;
 
-use ansi_term::Colour::*;
+use logger::{FlightLogger, ModuleLogger};
+use configurations::Config;
 use time;
 
 use networking::p2p_connection::InputStream;
 use config::Config;
 use debug_server;
 
+use super::pca9685::*;
+use std::thread::sleep_ms;
+
+use logger::ModuleLogger;
+use configurations::Config;
+
 // use sensor_manager::{InertialMeasurement,MultiSensorData};
 
 const MAX_VALUE_F: f32 = 2000.0;
-const MIN_VALUE_F: f32 = 980.0;
+const MIN_VALUE_F: f32 = 1000.0;
 const MAX_VALUE: u32 = 2000;
-const MIN_VALUE: u32 = 980;
+const MIN_VALUE: u32 = 1000;
 
+pub struct MotorOutput {
+    m1: f32,
+    m2: f32,
+    m3: f32,
+    m4: f32,
+}
 
+pub train MotorManager {
+    fn arm(&self);
+    fn terminate(&self);
+    fn set_powers(&self, input: MotorOutput);
+}
+
+// pub struct SoftwareMotorManager {
+//     pub motors: Vec<u32>,
+// };
+
+// impl SoftwareMotor {
+//     pub fn new(pin: u32) -> SoftwareMotor {
+//         SoftwareMotor {
+//             pin: pin,
+//         }
+//     }
+// }
+
+// impl MotorManager for SoftwareMotorManager {
+//     pub fn set_powers(&self, input: MotorOutput) {
+//         for &motor in self.motors {
+//             pwm(motor, power).unwrap();
+//         }
+//     }
+// }
+
+pub struct SerialMotorManager {
+    pub motors: Vec<u32>,
+    device: PCA9685,
+    logger: ModuleLogger,
+};
+
+impl SerialMotorManager {
+    pub fn new() -> SerialMotor {
+        let config = Config::new();
+        let logger = ModuleLogger::new("Motors", Some("Check if your serial pwm controller is properly connected or change your configuration."));
+        logger.log("Initializing Motor Manager.");
+        let device = match LinuxI2CDevice::new("/dev/i2c-1", 0x40) {
+            Ok(device) => device,
+            Err(e) => logger.error()
+	    let mut pca9685 = PCA9685::new(device, 50).unwrap();
+        pca9685.set_all_duty_cycle(0);
+        pca9685.set_pwm_frequency(100);
+        sleep_ms(10);
+        SerialMotor {
+            motors: config.hardware.motors.pins,
+            device: pca9685,
+            logger: logger,
+        }
+    } 
+}
+
+impl MotorManager for SerialMotorManager {
+    pub fn arm(&self) {
+        self.logger.log("Arming Motors.");
+        match self.device.set_all_pulse_length(MIN_VALUE_F) {
+            Ok(()) => {},
+            Err(e) => {
+                self.logger.error(format!("{}", e));
+                panic!(e.to_string());
+            }
+        }
+        sleep_ms(2000);
+        self.logger.success("Motors Armed.");
+    }
+
+    pub fn terminate(&self) {
+        self.logger.log("Terminating Motors.");
+        match self.device.set_all_duty_cycle(0) {
+            Ok(()) => {},
+            Err(e) => {
+                self.logger.error(format!("{}", e));
+                panic!(e.to_string());            
+            }
+        }
+        sleep_ms(2000);
+        self.logger.success("Motors Off.");
+    }
+
+    pub fn set_powers(&self, input: MotorOutput) {
+        for i in 0..self.motors.len() {
+            match self.set_pulse_length(self.motors[i], input[i]);
+        }
+    }
+}
 
 pub fn terminate_all_motors() {
     println!("[Motors]: TERMINATING MOTORS!");
@@ -38,8 +136,10 @@ pub fn terminate_all_motors() {
 }
 
 pub struct MotorManager {
+    logger: ModuleLogger,
     pub motors: Vec<u32>,
     motors_on: bool,
+    serial: bool,
     pub last_m1: u32,
     pub last_m2: u32,
     pub last_m3: u32,
@@ -49,19 +149,21 @@ pub struct MotorManager {
 impl MotorManager {
     pub fn new() -> MotorManager {
         let config = Config::new();
-        let mm = MotorManager { motors: config.motors.clone(), motors_on: config.motors_on,
-                                last_m1: 0, last_m2: 0, last_m3: 0, last_m4: 0  };
-        mm.initialize();
-        mm
-    }
+        let motor_pins = config.hardware.motors.pins;
 
-    fn initialize(&self) {
+        let mm = MotorManager { logger: ModuleLogger::new("Motors"), motors: config.motors.clone(), motors_on: config.motors_on,
+                                last_m1: 0, last_m2: 0, last_m3: 0, last_m4: 0  };
         initialize().unwrap();
-        for motor in self.motors.clone() {
+        for &motor in motors.clone() {
             initialize_motor(motor);
         }
         self.arm();
         println!("[Motors]: Initialized Motor Manager!");
+        mm
+    }
+
+    fn initialize(&self) {
+        
     }
 
     pub fn terminate(&mut self) {

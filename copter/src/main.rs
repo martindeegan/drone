@@ -1,11 +1,14 @@
 extern crate time;
 extern crate debug_server;
-extern crate config;
-extern crate ansi_term;
-extern crate nalgebra as na;
 extern crate typenum;
+extern crate logger;
+extern crate configurations;
+#[macro_use]
+extern crate rulinalg;
 
-use config::Config;
+use logger::ModuleLogger;
+
+use configurations::Config;
 
 mod hardware;
 mod flight;
@@ -23,10 +26,10 @@ use std::thread;
 
 // use sensor_manager::{start_sensors, calibrate_sensors};
 
-use ansi_term::Colour::*;
-
 fn main() {
-    println!("{}", Green.paint("[Input]: Press enter to start motors or type 'calibrate' to calibrate or 'calibrate sensors'."));
+    println!("Enter one of the following options:")
+    println!("1: Fly");
+    println!("2: Calibrate");
 
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
@@ -51,22 +54,22 @@ fn main() {
 }
 
 fn start() {
-
+    let logger = ModuleLogger::new("Input", None);
     let (flight_mode_controller, control_thread_handler) = start_flight();
 
-    println!("{}", Green.paint("[Input]: Press enter to start the flight."));
+    logger.log("Press enter to start the flight.");
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
 
     flight_mode_controller.send(FlightMode::TakeOff);
 
-    println!("{}", Green.paint("[Input]: Press enter to stop the flight."));
+    logger.log("Press enter to stop the flight.");
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
 
     flight_mode_controller.send(FlightMode::Landing);
 
-    println!("{}", Green.paint("[Input]: Press enter to shutdown."));
+    logger.log("Press enter to shutdown.");
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
 
