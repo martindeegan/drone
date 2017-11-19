@@ -61,7 +61,6 @@ serial = "I2C"
 
 [hardware.motors]
 pins = [1, 2, 3, 4]
-off = false
 serial_pwm = true
 serial = "I2C"
 
@@ -77,3 +76,4 @@ server_port = 0
 live_debugging = false
 debug_websocket_port = 0
 logging = true
+motors_off = false

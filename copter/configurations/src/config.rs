@@ -38,7 +38,6 @@ pub struct Sensor {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Motors {
     pins: Vec<u32>,
-    off: bool,
     serial_pwm: bool,
     serial: Option<SerialCommunication>,
 }
@@ -70,6 +69,7 @@ pub struct Debug {
     live_debugging: bool,
     debug_websocket_port: i32,
     logging: bool,
+    motors_off: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -165,6 +165,7 @@ impl Default for Config {
                 live_debugging: false,
                 debug_websocket_port: 0000,
                 logging: true,
+                motors_off: false,
             },
         }
     }

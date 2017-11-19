@@ -8,17 +8,17 @@ rust-pigpio = "0.2.0"
 time = "0.1"
 debug_server = {path = "./debug", version = "0.1.0"}
 config = { path = "./config" }
-i2csensors = "0.1.*"
-i2cdev-bmp180 = "0.1.*"
-i2cdev-bmp280 = "0.1.*"
-i2cdev-l3gd20 = "0.1.*"
-i2cdev-lsm303d = "0.1.*"
-i2cdev-lsm9ds0 = "0.1.*"
-pca9685 = "0.1.0"
-ads111x = "0.1.0"
-i2cdev = "0.3.1"
+i2cdev = { path = "./local/rust-i2cdev", version = "0.3.1" }
+i2csensors = { path = "./local/i2cdev-sensors/i2csensors" }
+i2cdev-bmp180 = { path = "./local/i2cdev-sensors/i2cdev-bmp180" }
+i2cdev-bmp280 = { path = "./local/i2cdev-sensors/i2cdev-bmp280" }
+i2cdev-l3gd20 = { path = "./local/i2cdev-sensors/i2cdev-l3gd20" }
+i2cdev-lsm303d = { path = "./local/i2cdev-sensors/i2cdev-lsm303d" }
+i2cdev-lsm9ds0 = { path = "./local/i2cdev-sensors/i2cdev-lsm9ds0" }
+pca9685 = { path = "./local/rust-pca9685" }
+ads111x = { path = "./local/rust-ads1115" }
 unbounded-gpsd = "0.4.2"
-wifilocation = { path = "./third_party/wifilocation" }
+wifilocation = { path = "./local/wifilocation" }
 typenum = "1.7.0"
 mqtt-protocol = "0.4"
 configurations = { path = "./configurations" }
