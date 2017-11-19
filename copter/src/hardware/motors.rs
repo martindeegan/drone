@@ -38,31 +38,40 @@ pub struct MotorOutput {
     m4: f32,
 }
 
-pub train MotorManager {
+pub trait MotorManager {
     fn arm(&self);
     fn terminate(&self);
     fn set_powers(&self, input: MotorOutput);
 }
 
-// pub struct SoftwareMotorManager {
-//     pub motors: Vec<u32>,
-// };
+pub struct SoftwareMotorManager {
+    pub motors: Vec<u32>,
+};
 
-// impl SoftwareMotor {
-//     pub fn new(pin: u32) -> SoftwareMotor {
-//         SoftwareMotor {
-//             pin: pin,
-//         }
-//     }
-// }
+impl SoftwareMotor {
+    pub fn new(pin: u32) -> SoftwareMotor {
+        let config = Config::new();
+        SoftwareMotor {
+            motors = config.motors.pins,
+        }
+    }
+}
 
-// impl MotorManager for SoftwareMotorManager {
-//     pub fn set_powers(&self, input: MotorOutput) {
-//         for &motor in self.motors {
-//             pwm(motor, power).unwrap();
-//         }
-//     }
-// }
+impl MotorManager for SoftwareMotorManager {
+    pub fn set_powers(&self, input: MotorOutput) {
+        for &motor in self.motors {
+            pwm(motor, power).unwrap();
+        }
+    }
+
+    fn arm(&self) {
+        
+    }
+
+    fn terminate(&self) {
+
+    }
+}
 
 pub struct SerialMotorManager {
     pub motors: Vec<u32>,
