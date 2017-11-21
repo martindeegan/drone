@@ -1,3 +1,21 @@
 [submodule "copter/third_party/wifilocation"]
 	path = copter/third_party/wifilocation
 	url = git@github.com:martindeegan/wifilocation.git
+[submodule "copter/local/i2cdev-sensors"]
+	path = copter/local/i2cdev-sensors
+	url = https://github.com/martindeegan/i2cdev-sensors.git
+	branch = DroneBranch
+[submodule "copter/local/rust-i2cdev"]
+	path = copter/local/rust-i2cdev
+	url = https://github.com/martindeegan/rust-i2cdev.git
+[submodule "copter/local/rust-ads1115"]
+	path = copter/local/rust-ads1115
+	url = https://github.com/martindeegan/rust-ads1115.git
+	branch = Drone
+[submodule "copter/local/rust-pca9685"]
+	path = copter/local/rust-pca9685
+	url = https://github.com/martindeegan/rust-pca9685.git
+	branch = Drone
+[submodule "copter/local/wifilocation"]
+	path = copter/local/wifilocation
+	url = https://github.com/martindeegan/wifilocation.git
