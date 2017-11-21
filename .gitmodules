@@ -1,6 +1,3 @@
-[submodule "copter/third_party/wifilocation"]
-	path = copter/third_party/wifilocation
-	url = git@github.com:martindeegan/wifilocation.git
 [submodule "copter/local/i2cdev-sensors"]
 	path = copter/local/i2cdev-sensors
 	url = https://github.com/martindeegan/i2cdev-sensors.git
