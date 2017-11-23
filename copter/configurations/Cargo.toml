@@ -3,6 +3,14 @@ name = "configurations"
 version = "0.1.0"
 authors = ["martindeegan"]
 
+[lib]
+name = "config"
+path =  "src/lib.rs"
+
+[[bin]]
+name = "default_generator"
+path = "src/main.rs"
+
 [dependencies]
 toml = "0.4"
 serde = "1.0.8"
