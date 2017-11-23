@@ -23,9 +23,9 @@ pub struct Flight {
 
 #[derive(Debug, Deserialize, Serialize)]
 enum SerialCommunication {
-    UART,
+    UART, // Unused currently
     I2C,
-    SPI,
+    SPI, // Unused currently
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -33,13 +33,14 @@ pub struct Sensor {
     name: String,
     update_rate: Option<i32>,
     serial: SerialCommunication,
+    slave_address: u16,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Motors {
     pins: Vec<u32>,
     serial_pwm: bool,
-    serial: Option<SerialCommunication>,
+    serial_controller: Option<Sensor>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -130,31 +131,41 @@ impl Default for Config {
                     name: String::from("Barometer Model"),
                     update_rate: Some(100),
                     serial: SerialCommunication::I2C,
+                    slave_address: 0,
                 }),
                 gyroscope: Sensor {
                     name: String::from("Gyroscope Model"),
                     update_rate: Some(100),
                     serial: SerialCommunication::I2C,
+                    slave_address: 0,
                 },
                 accelerometer: Sensor {
                     name: String::from("Accelerometer Model"),
                     update_rate: Some(100),
                     serial: SerialCommunication::I2C,
+                    slave_address: 0,
                 },
                 magnetometer: Some(Sensor {
                     name: String::from("Magnetometer Model"),
                     update_rate: Some(100),
                     serial: SerialCommunication::I2C,
+                    slave_address: 0,
                 }),
                 analog_converter: Some(Sensor {
                     name: String::from("Analog to Digital Converter"),
                     update_rate: Some(100),
                     serial: SerialCommunication::I2C,
+                    slave_address: 0,
                 }),
                 motors: Motors {
                     pins: vec![1, 2, 3, 4],
                     serial_pwm: true,
-                    serial: Some(SerialCommunication::I2C),
+                    serial_controller: Some(Sensor {
+                        name: String::from("PWM Controller"),
+                        update_rate: None,
+                        serial: SerialCommunication::I2C,
+                        slave_address: 0,
+                    }),
                 },
             },
             networking: Networking {

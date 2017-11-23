@@ -1,0 +1,9 @@
+[package]
+name = "drone-server"
+version = "0.1.0"
+authors = ["martindeegan <mdeegan@umich.edu>"]
+
+[dependencies]
+mqttc = "0.1.4"
+toml = "0.4"
+netopt = "0.1.3"
