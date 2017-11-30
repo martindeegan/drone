@@ -12,11 +12,9 @@ This project is a pure rust implementation of a quadcopter.
 
 ## Todo
 - [x] Move sensors to [i2cdev-sensors](https://github.com/martindeegan/i2cdev-sensors). Create a sensor manager that can be changed in config.json
-- [ ] Catch and handle all matches.
-- [ ] Refactor project
-- [ ] Add several flight modes
-- [ ] Dead reckoning local navigation
-- [ ] GPS long distance navigation
+- [x] Refactor project
+- [ ] Convert to an Extended Kalman Filter to track location and attitude.
+- [ ] GPS long distance navigation.
 
 ## Teststed Hardware
 ### Micro Controller
