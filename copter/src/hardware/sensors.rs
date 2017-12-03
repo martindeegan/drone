@@ -10,6 +10,7 @@ use super::i2csensors::*;
 use logger::{FlightLogger, ModuleLogger};
 use configurations::{Config,Calibrations};
 use rulinalg::vector::Vector;
+use rulinalg::matrix::Matrix;
 
 use time::{Duration,PreciseTime};
 
@@ -35,26 +36,69 @@ pub type MultiSensorData = Vec3;
 //     }
 // }
 
+fn convert_to_lin_alg(vec: Vec3) -> Vector<f32> {
+    let conversion: Vector<f32> = Vector::new(vec![vec.x, vec.y, vec.z]);
+    conversion
+}
 
 pub struct SensorInput {
-    pub angular_rate: Vector,
-    pub acceleration: Vector,
-    pub magnetic_reading: Vector,
+    pub angular_rate: Vector<f32>,
+    pub acceleration: Vector<f32>,
+    pub magnetic_reading: Vector<f32>,
     pub temperature: f32,
-    pub pressure: f32
+    pub pressure: f32,
 }
 
 pub struct SensorManager {
-    Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
-    Rc<RefCell<Thermometer<Error = LinuxI2CError>>>,
-    Rc<RefCell<Gyroscope<Error = LinuxI2CError>>>,
-    Rc<RefCell<Accelerometer<Error = LinuxI2CError>>>,
-    Rc<RefCell<Magnetometer<Error = LinuxI2CError>>>,
+    barometer: Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
+    thermometer: Rc<RefCell<Thermometer<Error = LinuxI2CError>>>,
+    gyroscope: Rc<RefCell<Gyroscope<Error = LinuxI2CError>>>,
+    accelerometer: Rc<RefCell<Accelerometer<Error = LinuxI2CError>>>,
+    magnetometer: Rc<RefCell<Magnetometer<Error = LinuxI2CError>>>,
 }
 
 impl SensorManager {
     pub fn new() -> SensorManager {
-        
+        let config = Config::new();
+        let (baro, thermo, gyro, accel, mag) = get_sensors();
+        SensorManager {
+            barometer: baro,
+            thermometer: thermo,
+            gyroscope: gyro,
+            accelerometer: accel,
+            magnetometer: mag,
+        }
+    }
+
+    pub fn read_sensors(&mut self) -> SensorInput {
+        let angular_rate = match self.gyroscope.borrow_mut().angular_rate_reading() {
+            Ok(reading) => convert_to_lin_alg(reading),
+            Err(_) => Vector::zeros(3),
+        };
+        let acceleration = match self.gyroscope.borrow_mut().acceleration_reading() {
+            Ok(reading) => convert_to_lin_alg(reading),
+            Err(_) => Vector::zeros(3),
+        };
+        let magnetism = match self.magnetometer.borrow_mut().magnetic_reading() {
+            Ok(reading) => convert_to_lin_alg(reading),
+            Err(_) => Vector::zeros(3),
+        };
+        let pressure = match self.barometer.borrow_mut().pressure_kpa() {
+            Ok(reading) => reading,
+            Err(_) => 0.0,
+        };
+        let temperature = match self.barometer.borrow_mut().temperature_celsius() {
+            Ok(reading) => reading,
+            Err(_) => 0.0,
+        };
+
+        SensorInput {
+            angular_rate: angular_rate,
+            acceleration: acceleration,
+            magnetic_reading: magnetism,
+            temperature: temperature,
+            pressure: pressure,
+        }
     }
 }
 
@@ -71,29 +115,29 @@ fn get_sensors() -> (Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
     let mut accelerometer: Option<Rc<RefCell<Accelerometer<Error = LinuxI2CError>>>> = None;
     let mut magnetometer: Option<Rc<RefCell<Magnetometer<Error = LinuxI2CError>>>> = None;
 
-    for sensor in config.sensors {
+    
         match sensor.as_ref() {
             "BMP180" => {
-                let bmp180 = Rc::new(RefCell::new(get_bmp180(config.sensor_sample_frequency).unwrap()));
+                let bmp180 = Rc::new(RefCell::new(get_bmp180(config.hardware.barometer.update_rate).unwrap()));
                 barometer = Some(bmp180.clone());
                 thermometer = Some(bmp180.clone());
             },
             "BMP280" => {
-                let bmp280 = Rc::new(RefCell::new(get_bmp280(config.sensor_sample_frequency)));
+                let bmp280 = Rc::new(RefCell::new(get_bmp280(config.hardware.barometer.update_rate)));
                 barometer = Some(bmp280.clone());
                 thermometer = Some(bmp280.clone());
             },
             "L3GD20" => {
-                let l3gd20 = Rc::new(RefCell::new(get_l3gd20(config.sensor_sample_frequency)));
+                let l3gd20 = Rc::new(RefCell::new(get_l3gd20(config.hardware.gyroscope.update_rate)));
                 gyroscope = Some(l3gd20.clone());
             }
             "LSM303D" => {
-                let lsm303d = Rc::new(RefCell::new(get_lsm303d(config.sensor_sample_frequency)));
+                let lsm303d = Rc::new(RefCell::new(get_lsm303d(config.hardware.accelerometer.update_rate)));
                 accelerometer = Some(lsm303d.clone());
                 magnetometer = Some(lsm303d.clone());
             },
             "LSM9DS0" => {
-                let lsm9ds0 = Rc::new(RefCell::new(get_lsm9ds0(config.sensor_sample_frequency)));
+                let lsm9ds0 = Rc::new(RefCell::new(get_lsm9ds0(config.hardware.gyroscope.update_rate)));
                 gyroscope = Some(lsm9ds0.clone());
                 accelerometer = Some(lsm9ds0.clone());
                 magnetometer = Some(lsm9ds0.clone());
@@ -102,7 +146,6 @@ fn get_sensors() -> (Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
                 return panic!("Undefined sensor: {}.", sensor);
             }
         }
-    }
 
     match barometer {
         Some(_) => {},
@@ -176,7 +219,6 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
         let loop_duration = Duration::nanoseconds(sensor_poll_delay);
         let mut count = 0;
         let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) = get_sensors();
-        let gps = get_gps()
 
         let (mut gyro_calib, mut accel_calib, mut mag_ofs, calib_matrix) = read_calibration_values();
         loop {
@@ -270,19 +312,19 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
 
 pub fn calibrate_sensors() {
     let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) = get_sensors();
-    println!("{}", Green.paint("[Sensors]: Place drone on a flat surface. Then press enter."));
+    println!("[Sensors]: Place drone on a flat surface. Then press enter.");
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
     let mut acceleration_calibration = Vec3::zeros();
     let mut gyroscope_calibration = Vec3::zeros();
-    println!("{}", Yellow.paint("[Sensors]: Calibrating gyroscope. Leave the drone still."));
+    println!("[Sensors]: Calibrating gyroscope. Leave the drone still.");
 
     for i in 0..50 {
         gyroscope_calibration = gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
         thread::sleep_ms(50);
     }
 
-    println!("{}", Green.paint("[Sensors]: Rotate 90 degrees then press enter."));
+    println!("[Sensors]: Rotate 90 degrees then press enter.");
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
 
@@ -291,7 +333,7 @@ pub fn calibrate_sensors() {
         thread::sleep_ms(50);
     }
 
-    println!("{}", Green.paint("[Sensors]: Rotate 90 degrees then press enter."));
+    println!("[Sensors]: Rotate 90 degrees then press enter.");
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
 
@@ -300,7 +342,7 @@ pub fn calibrate_sensors() {
         thread::sleep_ms(50);
     }
 
-    println!("{}", Green.paint("[Sensors]: Rotate 90 degrees then press enter."));
+    println!("[Sensors]: Rotate 90 degrees then press enter.");
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
 
@@ -311,8 +353,8 @@ pub fn calibrate_sensors() {
 
     gyroscope_calibration = gyroscope_calibration / 200.0;
 
-    println!("{} {}", Green.paint("[Sensors]: Calibrating magnetometer and accelerometer with ellipsoid fitting."),
-                      Yellow.paint("Press enter to continue then slowly tumble rotate the drone without any extra accelerations along the drone's axes."));
+    println!("[Sensors]: Calibrating magnetometer and accelerometer with ellipsoid fitting.");
+    println!("Press enter to continue then slowly tumble rotate the drone without any extra accelerations along the drone's axes.");
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
 

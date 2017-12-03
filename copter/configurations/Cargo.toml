@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["martindeegan"]
 
 [lib]
-name = "config"
+name = "configurations"
 path =  "src/lib.rs"
 
 [[bin]]

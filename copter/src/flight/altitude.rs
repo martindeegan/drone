@@ -1,4 +1,4 @@
-use config::Config;
+use configurations::Config;
 
 const MAX_DESCEND_RATE: f32 = -0.03;
 const MAX_ASCEND_RATE: f32 = 0.25;
