@@ -16,3 +16,6 @@
 [submodule "copter/local/wifilocation"]
 	path = copter/local/wifilocation
 	url = https://github.com/martindeegan/wifilocation.git
+[submodule "copter/local/unbounded-gpsd"]
+	path = copter/local/unbounded-gpsd
+	url = git@github.com:martindeegan/unbounded-gpsd.git

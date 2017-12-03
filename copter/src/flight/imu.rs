@@ -1,8 +1,8 @@
 use hardware::sensors::{MultiSensorData,start_sensors,SensorInput};
 
+use configurations::Config;
 use std::sync::mpsc::{Sender, Receiver, channel};
 use std::f32::consts::PI;
-use na::core::{Matrix3,Vector3,Matrix2};
 // x: roll
 // y: pitch
 // z: yaw

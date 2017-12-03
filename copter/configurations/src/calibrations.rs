@@ -12,7 +12,7 @@ pub struct Simple {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct Spacial {
+pub struct Spatial {
     xx: f32,
     xy: f32,
     xz: f32,
@@ -27,8 +27,8 @@ pub struct Spacial {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Calibrations {
     gyroscope: Option<Simple>,
-    accelerometer: Option<Spacial>,
-    magnetometer: Option<Spacial>,
+    accelerometer: Option<Spatial>,
+    magnetometer: Option<Spatial>,
 }
 
 impl Calibrations {
@@ -83,7 +83,7 @@ impl Default for Calibrations {
                 y: 0.0,
                 z: 0.0,
             }),
-            accelerometer: Some(Spacial {
+            accelerometer: Some(Spatial {
                 xx: 0.0,
                 xy: 0.0,
                 xz: 0.0,
@@ -94,7 +94,7 @@ impl Default for Calibrations {
                 zy: 0.0,
                 zz: 0.0,
             }),
-            magnetometer: Some(Spacial {
+            magnetometer: Some(Spatial {
                 xx: 0.0,
                 xy: 0.0,
                 xz: 0.0,

@@ -4,10 +4,9 @@ version = "0.1.0"
 authors = ["Thomas Deegan <tadeegan@gmail.com>", "Martin Deegan <mddeegan@gmail.com>"]
 
 [dependencies]
-rust-pigpio = "0.2.0"
+# rust-pigpio = "0.2.0"
 time = "0.1"
 debug_server = {path = "./debug", version = "0.1.0"}
-config = { path = "./config" }
 i2cdev = { path = "./local/rust-i2cdev", version = "0.3.1" }
 i2csensors = { path = "./local/i2cdev-sensors/i2csensors" }
 i2cdev-bmp180 = { path = "./local/i2cdev-sensors/i2cdev-bmp180" }
@@ -24,7 +23,7 @@ mqtt-protocol = "0.4"
 configurations = { path = "./configurations" }
 logger = { path = "./logger" }
 rulinalg = "0.4.2"
-
+nalgebra = "0.13.1"
 
 [[bin]]
 name = "drone"

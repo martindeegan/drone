@@ -11,7 +11,7 @@ use self::navigation::{Navigator,Destination,lat_lon_bearing,lat_lon_distance};
 use hardware::motors::MotorManager;
 use hardware::sensors::start_sensors;
 
-use config::Config;
+use configurations::Config;
 use debug_server::{Logger,Signal,DebugInfo};
 use time::{Duration,PreciseTime};
 

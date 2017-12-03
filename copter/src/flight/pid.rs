@@ -1,6 +1,6 @@
 use hardware::sensors::MultiSensorData;
 use flight::imu::Attitude;
-use config::Config;
+use configurations::Config;
 
 pub struct PID {
     integral_on: bool,
