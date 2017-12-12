@@ -116,6 +116,7 @@ fn get_sensors() -> (
     let mut accelerometer: Option<Rc<RefCell<Accelerometer<Error = LinuxI2CError>>>> = None;
     let mut magnetometer: Option<Rc<RefCell<Magnetometer<Error = LinuxI2CError>>>> = None;
 
+<<<<<<< HEAD
 
     match sensor.as_ref() {
         "BMP180" => {
@@ -155,8 +156,39 @@ fn get_sensors() -> (
         }
         _ => {
             return panic!("Undefined sensor: {}.", sensor);
+=======
+    
+        match sensor.as_ref() {
+            "BMP180" => {
+                let bmp180 = Rc::new(RefCell::new(get_bmp180(config.hardware.barometer.update_rate).unwrap()));
+                barometer = Some(bmp180.clone());
+                thermometer = Some(bmp180.clone());
+            },
+            "BMP280" => {
+                let bmp280 = Rc::new(RefCell::new(get_bmp280(config.hardware.barometer.update_rate)));
+                barometer = Some(bmp280.clone());
+                thermometer = Some(bmp280.clone());
+            },
+            "L3GD20" => {
+                let l3gd20 = Rc::new(RefCell::new(get_l3gd20(config.hardware.gyroscope.update_rate)));
+                gyroscope = Some(l3gd20.clone());
+            }
+            "LSM303D" => {
+                let lsm303d = Rc::new(RefCell::new(get_lsm303d(config.hardware.accelerometer.update_rate)));
+                accelerometer = Some(lsm303d.clone());
+                magnetometer = Some(lsm303d.clone());
+            },
+            "LSM9DS0" => {
+                let lsm9ds0 = Rc::new(RefCell::new(get_lsm9ds0(config.hardware.gyroscope.update_rate)));
+                gyroscope = Some(lsm9ds0.clone());
+                accelerometer = Some(lsm9ds0.clone());
+                magnetometer = Some(lsm9ds0.clone());
+            },
+            _ => {
+                return panic!("Undefined sensor: {}.", sensor);
+            }
+>>>>>>> 475611dd57d28da45f15a2e19a603c45099a08ac
         }
-    }
 
     match barometer {
         Some(_) => {}
@@ -249,6 +281,7 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
 
     let magnetometer_counter = sensor_poll_rate / 100;
 
+<<<<<<< HEAD
     thread::Builder::new()
         .name("Sensor Thread".to_string())
         .spawn(move || {
@@ -337,6 +370,53 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
                         Err(e) => {}
                     }
                 }
+=======
+    thread::Builder::new().name("Sensor Thread".to_string()).spawn(move || {
+        let loop_duration = Duration::nanoseconds(sensor_poll_delay);
+        let mut count = 0;
+        let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) = get_sensors();
+
+        let (mut gyro_calib, mut accel_calib, mut mag_ofs, calib_matrix) = read_calibration_values();
+        loop {
+            let start_time = PreciseTime::now();
+
+            let mut input = SensorInput {
+                angular_rate: MultiSensorData::zeros(),
+                acceleration: MultiSensorData::zeros(),
+                magnetic_reading: None,
+                temperature: 0.0,
+                pressure: 0.0
+            };
+
+            match gyroscope.borrow_mut().angular_rate_reading() {
+                Ok(angular_rate) => {
+                    // let alpha = 0.00003;
+                    // gyro_calib = gyro_calib * (1.0 - alpha) + angular_rate * alpha;
+                    // println!("gyro calib: {:?}", gyro_calib);
+                    let alpha = 0.005;
+                    gyro_calib = gyro_calib * (1.0 - alpha) + angular_rate * alpha;
+                    input.angular_rate = angular_rate - gyro_calib;
+                    input.angular_rate.y *= -1.0;
+                    input.angular_rate.z *= -1.0;
+                    // println!("gyro: {:?}", input.angular_rate);
+                },
+                Err(e) => {}
+            }
+
+            match accelerometer.borrow_mut().acceleration_reading() {
+                Ok(mut acceleration) => {
+                    acceleration = acceleration - Vec3 { x: -0.176987750378325, y: -0.0643969179666939, z: 0.0368680289439468 };
+                    acceleration.x = acceleration.x * 1.00126703403732 + acceleration.y * 0.00662310660530386 + acceleration.z * -0.000510382093277389;
+                    acceleration.y = acceleration.x * 0.00662310660530371 + acceleration.y * 0.997902617513774 + acceleration.z * -0.00135008782991750;
+                    acceleration.z = acceleration.x * -0.000510382093277452 + acceleration.y * -0.00135008782991756 + acceleration.z * 1.00418778375736;
+
+                    input.acceleration = acceleration;
+                    input.acceleration.x *= -1.0;
+                    // println!("accel: {:?}", input.acceleration);
+                },
+                Err(e) => {}
+            }
+>>>>>>> 475611dd57d28da45f15a2e19a603c45099a08ac
 
                 match thermometer.borrow_mut().temperature_celsius() {
                     Ok(temp) => {
@@ -357,7 +437,16 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
                     Err(e) => {}
                 }
 
+<<<<<<< HEAD
                 sensor_tx.send(input);
+=======
+            match self.gps.try_recv() {
+                Ok(data) => {},
+                Err(e) => {}
+            }
+
+            sensor_tx.send(input);
+>>>>>>> 475611dd57d28da45f15a2e19a603c45099a08ac
 
                 count += 1;
 
@@ -374,8 +463,12 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
 
 
 pub fn calibrate_sensors() {
+<<<<<<< HEAD
     let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) =
         get_sensors();
+=======
+    let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) = get_sensors();
+>>>>>>> 475611dd57d28da45f15a2e19a603c45099a08ac
     println!("[Sensors]: Place drone on a flat surface. Then press enter.");
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
