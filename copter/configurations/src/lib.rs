@@ -3,8 +3,8 @@ extern crate serde;
 extern crate serde_derive;
 extern crate toml;
 
-mod config;
-mod calibrations;
+pub mod config;
+pub mod calibrations;
 
 pub type Config = config::Config;
 pub type Calibrations = calibrations::Calibrations;

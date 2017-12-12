@@ -6,29 +6,29 @@ use std::string::String;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Simple {
-    x: f32,
-    y: f32,
-    z: f32,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Spatial {
-    xx: f32,
-    xy: f32,
-    xz: f32,
-    yx: f32,
-    yy: f32,
-    yz: f32,
-    zx: f32,
-    zy: f32,
-    zz: f32,
+    pub xx: f32,
+    pub xy: f32,
+    pub xz: f32,
+    pub yx: f32,
+    pub yy: f32,
+    pub yz: f32,
+    pub zx: f32,
+    pub zy: f32,
+    pub zz: f32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Calibrations {
-    gyroscope: Option<Simple>,
-    accelerometer: Option<Spatial>,
-    magnetometer: Option<Spatial>,
+    pub gyroscope: Option<Simple>,
+    pub accelerometer: Option<Spatial>,
+    pub magnetometer: Option<Spatial>,
 }
 
 impl Calibrations {

@@ -11,8 +11,6 @@ extern crate i2csensors;
 extern crate logger;
 extern crate nalgebra as na;
 extern crate pca9685;
-#[macro_use]
-extern crate rulinalg;
 extern crate time;
 extern crate typenum;
 // extern crate rust_pigpio;
@@ -20,7 +18,6 @@ extern crate unbounded_gpsd;
 extern crate wifilocation;
 
 use logger::ModuleLogger;
-
 use configurations::Config;
 
 mod hardware;
@@ -33,35 +30,18 @@ mod hardware;
 // use flight::{FlightMode,start_flight};
 // use hardware::motors::MotorManager;
 
+use hardware::initialize_hardware;
+
 use std::io::stdin;
 use std::string::String;
-use std::thread;
 
 // use sensor_manager::{start_sensors, calibrate_sensors};
 
 fn main() {
-    println!("Enter one of the following options:");
-    println!("1: Fly");
-    println!("2: Calibrate");
+    let _logger = ModuleLogger::new("Main", None);
+    let _config = Config::new().unwrap();
 
-    let mut input = String::new();
-    stdin().read_line(&mut input).expect("Error");
-    match input.trim() {
-        "run_motors" => {}
-        "calibrate" => {
-            // hardware::motors::calibrate();
-        }
-        "calibrate sensors" => {
-            println!("Place drone on a completely level surface. Then press enter.");
-            input = String::new();
-            stdin().read_line(&mut input).expect("Error");
-
-            // calibrate_sensors();
-        }
-        _ => {
-            start();
-        }
-    }
+    initialize_hardware();
 }
 
 fn start() {

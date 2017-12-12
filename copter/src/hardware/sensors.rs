@@ -3,21 +3,21 @@ use super::i2cdev_bmp280::*;
 use super::i2cdev_l3gd20::*;
 use super::i2cdev_lsm303d::*;
 use super::i2cdev_lsm9ds0::*;
-use super::i2cdev::linux::{LinuxI2CDevice,LinuxI2CError};
+use super::i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
 use super::i2cdev::core::I2CDevice;
 use super::i2csensors::*;
 
 use logger::{FlightLogger, ModuleLogger};
-use configurations::{Config,Calibrations};
+use configurations::{Calibrations, Config};
 use rulinalg::vector::Vector;
 use rulinalg::matrix::Matrix;
 
-use time::{Duration,PreciseTime};
+use time::{Duration, PreciseTime};
 
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::thread;
-use std::sync::mpsc::{Sender,Receiver,channel};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::io::stdin;
 use std::collections::VecDeque;
 use std::vec::Vec;
@@ -102,12 +102,13 @@ impl SensorManager {
     }
 }
 
-fn get_sensors() -> (Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
-                     Rc<RefCell<Thermometer<Error = LinuxI2CError>>>,
-                     Rc<RefCell<Gyroscope<Error = LinuxI2CError>>>,
-                     Rc<RefCell<Accelerometer<Error = LinuxI2CError>>>,
-                     Rc<RefCell<Magnetometer<Error = LinuxI2CError>>>)
-{
+fn get_sensors() -> (
+    Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
+    Rc<RefCell<Thermometer<Error = LinuxI2CError>>>,
+    Rc<RefCell<Gyroscope<Error = LinuxI2CError>>>,
+    Rc<RefCell<Accelerometer<Error = LinuxI2CError>>>,
+    Rc<RefCell<Magnetometer<Error = LinuxI2CError>>>,
+) {
     let config = Config::new();
     let mut barometer: Option<Rc<RefCell<Barometer<Error = LinuxI2CError>>>> = None;
     let mut thermometer: Option<Rc<RefCell<Thermometer<Error = LinuxI2CError>>>> = None;
@@ -115,94 +116,127 @@ fn get_sensors() -> (Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
     let mut accelerometer: Option<Rc<RefCell<Accelerometer<Error = LinuxI2CError>>>> = None;
     let mut magnetometer: Option<Rc<RefCell<Magnetometer<Error = LinuxI2CError>>>> = None;
 
-    
-        match sensor.as_ref() {
-            "BMP180" => {
-                let bmp180 = Rc::new(RefCell::new(get_bmp180(config.hardware.barometer.update_rate).unwrap()));
-                barometer = Some(bmp180.clone());
-                thermometer = Some(bmp180.clone());
-            },
-            "BMP280" => {
-                let bmp280 = Rc::new(RefCell::new(get_bmp280(config.hardware.barometer.update_rate)));
-                barometer = Some(bmp280.clone());
-                thermometer = Some(bmp280.clone());
-            },
-            "L3GD20" => {
-                let l3gd20 = Rc::new(RefCell::new(get_l3gd20(config.hardware.gyroscope.update_rate)));
-                gyroscope = Some(l3gd20.clone());
-            }
-            "LSM303D" => {
-                let lsm303d = Rc::new(RefCell::new(get_lsm303d(config.hardware.accelerometer.update_rate)));
-                accelerometer = Some(lsm303d.clone());
-                magnetometer = Some(lsm303d.clone());
-            },
-            "LSM9DS0" => {
-                let lsm9ds0 = Rc::new(RefCell::new(get_lsm9ds0(config.hardware.gyroscope.update_rate)));
-                gyroscope = Some(lsm9ds0.clone());
-                accelerometer = Some(lsm9ds0.clone());
-                magnetometer = Some(lsm9ds0.clone());
-            },
-            _ => {
-                return panic!("Undefined sensor: {}.", sensor);
-            }
+
+    match sensor.as_ref() {
+        "BMP180" => {
+            let bmp180 = Rc::new(RefCell::new(
+                get_bmp180(config.hardware.barometer.update_rate).unwrap(),
+            ));
+            barometer = Some(bmp180.clone());
+            thermometer = Some(bmp180.clone());
         }
+        "BMP280" => {
+            let bmp280 = Rc::new(RefCell::new(get_bmp280(
+                config.hardware.barometer.update_rate,
+            )));
+            barometer = Some(bmp280.clone());
+            thermometer = Some(bmp280.clone());
+        }
+        "L3GD20" => {
+            let l3gd20 = Rc::new(RefCell::new(get_l3gd20(
+                config.hardware.gyroscope.update_rate,
+            )));
+            gyroscope = Some(l3gd20.clone());
+        }
+        "LSM303D" => {
+            let lsm303d = Rc::new(RefCell::new(get_lsm303d(
+                config.hardware.accelerometer.update_rate,
+            )));
+            accelerometer = Some(lsm303d.clone());
+            magnetometer = Some(lsm303d.clone());
+        }
+        "LSM9DS0" => {
+            let lsm9ds0 = Rc::new(RefCell::new(get_lsm9ds0(
+                config.hardware.gyroscope.update_rate,
+            )));
+            gyroscope = Some(lsm9ds0.clone());
+            accelerometer = Some(lsm9ds0.clone());
+            magnetometer = Some(lsm9ds0.clone());
+        }
+        _ => {
+            return panic!("Undefined sensor: {}.", sensor);
+        }
+    }
 
     match barometer {
-        Some(_) => {},
+        Some(_) => {}
         None => {
             panic!("Error: No barometer set.");
         }
     }
 
     match thermometer {
-        Some(_) => {},
+        Some(_) => {}
         None => {
             panic!("Error: No thermometer set.");
         }
     }
 
     match gyroscope {
-        Some(_) => {},
+        Some(_) => {}
         None => {
             panic!("Error: No gyroscope set.");
         }
     }
 
     match accelerometer {
-        Some(_) => {},
+        Some(_) => {}
         None => {
             panic!("Error: No accelerometer set.");
         }
     }
 
     match magnetometer {
-        Some(_) => {},
+        Some(_) => {}
         None => {
             panic!("Error: No magnetometer set.");
         }
     }
 
-    (barometer.unwrap(), thermometer.unwrap(), gyroscope.unwrap(), accelerometer.unwrap(), magnetometer.unwrap())
+    (
+        barometer.unwrap(),
+        thermometer.unwrap(),
+        gyroscope.unwrap(),
+        accelerometer.unwrap(),
+        magnetometer.unwrap(),
+    )
 }
 
-fn read_calibration_values() -> (MultiSensorData, MultiSensorData, MultiSensorData, Matrix3<f32>) {
+fn read_calibration_values() -> (
+    MultiSensorData,
+    MultiSensorData,
+    MultiSensorData,
+    Matrix3<f32>,
+) {
     let calibs = SensorCalibrations::new();
-    (MultiSensorData {
-        x: calibs.gyro_x,
-        y: calibs.gyro_y,
-        z: calibs.gyro_z,
-    },
-    MultiSensorData {
-        x: calibs.accel_x,
-        y: calibs.accel_y,
-        z: calibs.accel_z
-    },
-    MultiSensorData {
-        x: calibs.mag_ofs_x,
-        y: calibs.mag_ofs_y,
-        z: calibs.mag_ofs_z
-    },
-    Matrix3::new(calibs.mag_rot_11, calibs.mag_rot_12, calibs.mag_rot_13, calibs.mag_rot_21, calibs.mag_rot_22, calibs.mag_rot_23, calibs.mag_rot_31, calibs.mag_rot_32, calibs.mag_rot_33))
+    (
+        MultiSensorData {
+            x: calibs.gyro_x,
+            y: calibs.gyro_y,
+            z: calibs.gyro_z,
+        },
+        MultiSensorData {
+            x: calibs.accel_x,
+            y: calibs.accel_y,
+            z: calibs.accel_z,
+        },
+        MultiSensorData {
+            x: calibs.mag_ofs_x,
+            y: calibs.mag_ofs_y,
+            z: calibs.mag_ofs_z,
+        },
+        Matrix3::new(
+            calibs.mag_rot_11,
+            calibs.mag_rot_12,
+            calibs.mag_rot_13,
+            calibs.mag_rot_21,
+            calibs.mag_rot_22,
+            calibs.mag_rot_23,
+            calibs.mag_rot_31,
+            calibs.mag_rot_32,
+            calibs.mag_rot_33,
+        ),
+    )
 }
 
 // Returns (gyro_accel_rx, mag_rx, thermo_baro_rx);
@@ -215,95 +249,124 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
 
     let magnetometer_counter = sensor_poll_rate / 100;
 
-    thread::Builder::new().name("Sensor Thread".to_string()).spawn(move || {
-        let loop_duration = Duration::nanoseconds(sensor_poll_delay);
-        let mut count = 0;
-        let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) = get_sensors();
+    thread::Builder::new()
+        .name("Sensor Thread".to_string())
+        .spawn(move || {
+            let loop_duration = Duration::nanoseconds(sensor_poll_delay);
+            let mut count = 0;
+            let (
+                mut barometer,
+                mut thermometer,
+                mut gyroscope,
+                mut accelerometer,
+                mut magnetometer,
+            ) = get_sensors();
 
-        let (mut gyro_calib, mut accel_calib, mut mag_ofs, calib_matrix) = read_calibration_values();
-        loop {
-            let start_time = PreciseTime::now();
+            let (mut gyro_calib, mut accel_calib, mut mag_ofs, calib_matrix) =
+                read_calibration_values();
+            loop {
+                let start_time = PreciseTime::now();
 
-            let mut input = SensorInput {
-                angular_rate: MultiSensorData::zeros(),
-                acceleration: MultiSensorData::zeros(),
-                magnetic_reading: None,
-                temperature: 0.0,
-                pressure: 0.0
-            };
+                let mut input = SensorInput {
+                    angular_rate: MultiSensorData::zeros(),
+                    acceleration: MultiSensorData::zeros(),
+                    magnetic_reading: None,
+                    temperature: 0.0,
+                    pressure: 0.0,
+                };
 
-            match gyroscope.borrow_mut().angular_rate_reading() {
-                Ok(angular_rate) => {
-                    // let alpha = 0.00003;
-                    // gyro_calib = gyro_calib * (1.0 - alpha) + angular_rate * alpha;
-                    // println!("gyro calib: {:?}", gyro_calib);
-                    let alpha = 0.005;
-                    gyro_calib = gyro_calib * (1.0 - alpha) + angular_rate * alpha;
-                    input.angular_rate = angular_rate - gyro_calib;
-                    input.angular_rate.y *= -1.0;
-                    input.angular_rate.z *= -1.0;
-                    // println!("gyro: {:?}", input.angular_rate);
-                },
-                Err(e) => {}
-            }
-
-            match accelerometer.borrow_mut().acceleration_reading() {
-                Ok(mut acceleration) => {
-                    acceleration = acceleration - Vec3 { x: -0.176987750378325, y: -0.0643969179666939, z: 0.0368680289439468 };
-                    acceleration.x = acceleration.x * 1.00126703403732 + acceleration.y * 0.00662310660530386 + acceleration.z * -0.000510382093277389;
-                    acceleration.y = acceleration.x * 0.00662310660530371 + acceleration.y * 0.997902617513774 + acceleration.z * -0.00135008782991750;
-                    acceleration.z = acceleration.x * -0.000510382093277452 + acceleration.y * -0.00135008782991756 + acceleration.z * 1.00418778375736;
-
-                    input.acceleration = acceleration;
-                    input.acceleration.x *= -1.0;
-                    // println!("accel: {:?}", input.acceleration);
-                },
-                Err(e) => {}
-            }
-
-            if count % magnetometer_counter == 0 {
-                match magnetometer.borrow_mut().magnetic_reading() {
-                    Ok(mut magnetism) => {
-                        // println!("{:?}", magnetism);
-                        magnetism = magnetism - Vec3 { x: -0.189575328870267, y: 0.0597052440863164, z: 0.0285933538364212 };;
-                        magnetism.x = magnetism.x * 1.66314648899102 + magnetism.y * -0.0365578805671075 + magnetism.z * 0.0481109910962223;
-                        magnetism.y = magnetism.x * -0.0365578805671075 + magnetism.y * 2.09504054789850 + magnetism.z * 0.0379828626601234;
-                        magnetism.z = magnetism.x * 0.0481109910962223 + magnetism.y * 0.0379828626601234 + magnetism.z * 2.06953892520177;
-                        input.magnetic_reading = Some(magnetism);
-                    },
+                match gyroscope.borrow_mut().angular_rate_reading() {
+                    Ok(angular_rate) => {
+                        // let alpha = 0.00003;
+                        // gyro_calib = gyro_calib * (1.0 - alpha) + angular_rate * alpha;
+                        // println!("gyro calib: {:?}", gyro_calib);
+                        let alpha = 0.005;
+                        gyro_calib = gyro_calib * (1.0 - alpha) + angular_rate * alpha;
+                        input.angular_rate = angular_rate - gyro_calib;
+                        input.angular_rate.y *= -1.0;
+                        input.angular_rate.z *= -1.0;
+                        // println!("gyro: {:?}", input.angular_rate);
+                    }
                     Err(e) => {}
                 }
+
+                match accelerometer.borrow_mut().acceleration_reading() {
+                    Ok(mut acceleration) => {
+                        acceleration = acceleration - Vec3 {
+                            x: -0.176987750378325,
+                            y: -0.0643969179666939,
+                            z: 0.0368680289439468,
+                        };
+                        acceleration.x = acceleration.x * 1.00126703403732
+                            + acceleration.y * 0.00662310660530386
+                            + acceleration.z * -0.000510382093277389;
+                        acceleration.y = acceleration.x * 0.00662310660530371
+                            + acceleration.y * 0.997902617513774
+                            + acceleration.z * -0.00135008782991750;
+                        acceleration.z = acceleration.x * -0.000510382093277452
+                            + acceleration.y * -0.00135008782991756
+                            + acceleration.z * 1.00418778375736;
+
+                        input.acceleration = acceleration;
+                        input.acceleration.x *= -1.0;
+                        // println!("accel: {:?}", input.acceleration);
+                    }
+                    Err(e) => {}
+                }
+
+                if count % magnetometer_counter == 0 {
+                    match magnetometer.borrow_mut().magnetic_reading() {
+                        Ok(mut magnetism) => {
+                            // println!("{:?}", magnetism);
+                            magnetism = magnetism - Vec3 {
+                                x: -0.189575328870267,
+                                y: 0.0597052440863164,
+                                z: 0.0285933538364212,
+                            };;
+                            magnetism.x = magnetism.x * 1.66314648899102
+                                + magnetism.y * -0.0365578805671075
+                                + magnetism.z * 0.0481109910962223;
+                            magnetism.y = magnetism.x * -0.0365578805671075
+                                + magnetism.y * 2.09504054789850
+                                + magnetism.z * 0.0379828626601234;
+                            magnetism.z = magnetism.x * 0.0481109910962223
+                                + magnetism.y * 0.0379828626601234
+                                + magnetism.z * 2.06953892520177;
+                            input.magnetic_reading = Some(magnetism);
+                        }
+                        Err(e) => {}
+                    }
+                }
+
+                match thermometer.borrow_mut().temperature_celsius() {
+                    Ok(temp) => {
+                        input.temperature = temp;
+                    }
+                    Err(e) => {}
+                }
+
+                match barometer.borrow_mut().pressure_kpa() {
+                    Ok(pressure) => {
+                        input.pressure = pressure;
+                    }
+                    Err(e) => {}
+                }
+
+                match self.gps.try_recv() {
+                    Ok(data) => {}
+                    Err(e) => {}
+                }
+
+                sensor_tx.send(input);
+
+                count += 1;
+
+                let remaining = loop_duration - start_time.to(PreciseTime::now());
+                if remaining > Duration::zero() {
+                    thread::sleep(Duration::to_std(&remaining).unwrap());
+                }
             }
-
-            match thermometer.borrow_mut().temperature_celsius() {
-                Ok(temp) => {
-                    input.temperature = temp;
-                },
-                Err(e) => {}
-            }
-
-            match barometer.borrow_mut().pressure_kpa() {
-                Ok(pressure) => {
-                    input.pressure = pressure;
-                },
-                Err(e) => {}
-            }
-
-            match self.gps.try_recv() {
-                Ok(data) => {},
-                Err(e) => {}
-            }
-
-            sensor_tx.send(input);
-
-            count += 1;
-
-            let remaining = loop_duration - start_time.to(PreciseTime::now());
-            if remaining > Duration::zero() {
-                thread::sleep(Duration::to_std(&remaining).unwrap());
-            }
-        }
-    });
+        });
 
     sensor_rx
 }
@@ -311,7 +374,8 @@ pub fn start_sensors() -> (Receiver<SensorInput>) {
 
 
 pub fn calibrate_sensors() {
-    let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) = get_sensors();
+    let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) =
+        get_sensors();
     println!("[Sensors]: Place drone on a flat surface. Then press enter.");
     let mut input = String::new();
     stdin().read_line(&mut input).expect("Error");
@@ -320,7 +384,8 @@ pub fn calibrate_sensors() {
     println!("[Sensors]: Calibrating gyroscope. Leave the drone still.");
 
     for i in 0..50 {
-        gyroscope_calibration = gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
+        gyroscope_calibration =
+            gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
         thread::sleep_ms(50);
     }
 
@@ -329,7 +394,8 @@ pub fn calibrate_sensors() {
     stdin().read_line(&mut input).expect("Error");
 
     for i in 0..50 {
-        gyroscope_calibration = gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
+        gyroscope_calibration =
+            gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
         thread::sleep_ms(50);
     }
 
@@ -338,7 +404,8 @@ pub fn calibrate_sensors() {
     stdin().read_line(&mut input).expect("Error");
 
     for i in 0..50 {
-        gyroscope_calibration = gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
+        gyroscope_calibration =
+            gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
         thread::sleep_ms(50);
     }
 
@@ -347,7 +414,8 @@ pub fn calibrate_sensors() {
     stdin().read_line(&mut input).expect("Error");
 
     for i in 0..50 {
-        gyroscope_calibration = gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
+        gyroscope_calibration =
+            gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
         thread::sleep_ms(50);
     }
 
@@ -389,7 +457,10 @@ pub fn calibrate_sensors() {
     // }
 
     for i in 0..magnetometer_readings.len() {
-        println!("{},{},{}", magnetometer_readings[i].x, magnetometer_readings[i].y, magnetometer_readings[i].z);
+        println!(
+            "{},{},{}",
+            magnetometer_readings[i].x, magnetometer_readings[i].y, magnetometer_readings[i].z
+        );
     }
     // for i in 0..magnetometer_readings.len() {
     //     println!("{},{},{},{},{},{}", accelerometer_readings[i].x, accelerometer_readings[i].y, accelerometer_readings[i].z, magnetometer_readings[i].x, magnetometer_readings[i].y, magnetometer_readings[i].z);
@@ -512,7 +583,7 @@ fn get_bmp280(frequency: u32) -> BMP280<LinuxI2CDevice> {
         iir_filter_coeff: BMP280FilterCoefficient::Off,
         osrs_t: BMP280TemperatureOversampling::x1,
         osrs_p: BMP280PressureOversampling::StandardResolution,
-        power_mode: BMP280PowerMode::NormalMode
+        power_mode: BMP280PowerMode::NormalMode,
     };
 
     let baro = get_linux_bmp280_i2c_device().unwrap();
@@ -536,18 +607,16 @@ fn get_l3gd20(frequency: u32) -> L3GD20<LinuxI2CDevice> {
         continuous_update: true,
         high_pass_filter_enabled: true,
         high_pass_filter_mode: Some(L3GD20GyroscopeHighPassFilterMode::NormalMode),
-        high_pass_filter_configuration: Some(L3GD20HighPassFilterCutOffConfig::HPCF_3)
+        high_pass_filter_configuration: Some(L3GD20HighPassFilterCutOffConfig::HPCF_3),
     };
 
     if frequency <= 190 {
         gyro_settings.DR = L3GD20GyroscopeDataRate::Hz190;
         gyro_settings.BW = L3GD20GyroscopeBandwidth::BW2;
-    }
-    else if frequency <= 380 {
+    } else if frequency <= 380 {
         gyro_settings.DR = L3GD20GyroscopeDataRate::Hz380;
         gyro_settings.BW = L3GD20GyroscopeBandwidth::BW3;
-    }
-    else {
+    } else {
         gyro_settings.DR = L3GD20GyroscopeDataRate::Hz760;
         gyro_settings.BW = L3GD20GyroscopeBandwidth::BW4;
     }
@@ -574,24 +643,25 @@ fn get_lsm303d(frequency: u32) -> LSM303D<LinuxI2CDevice> {
         magnetometer_data_rate: LSM303DMagnetometerUpdateRate::Hz100,
         magnetometer_low_power_mode: false,
         magnetometer_mode: LSM303DMagnetometerMode::ContinuousConversion,
-        magnetometer_sensitivity: LSM303DMagnetometerFS::gauss2
+        magnetometer_sensitivity: LSM303DMagnetometerFS::gauss2,
     };
 
     if frequency <= 200 {
         accel_mag_settings.accelerometer_data_rate = LSM303DAccelerometerUpdateRate::Hz200;
-        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM303DAccelerometerFilterBandwidth::Hz50;
-    }
-    else if frequency <= 400 {
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth =
+            LSM303DAccelerometerFilterBandwidth::Hz50;
+    } else if frequency <= 400 {
         accel_mag_settings.accelerometer_data_rate = LSM303DAccelerometerUpdateRate::Hz400;
-        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM303DAccelerometerFilterBandwidth::Hz194;
-    }
-    else if frequency <= 800 {
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth =
+            LSM303DAccelerometerFilterBandwidth::Hz194;
+    } else if frequency <= 800 {
         accel_mag_settings.accelerometer_data_rate = LSM303DAccelerometerUpdateRate::Hz800;
-        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM303DAccelerometerFilterBandwidth::Hz194;
-    }
-    else {
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth =
+            LSM303DAccelerometerFilterBandwidth::Hz194;
+    } else {
         accel_mag_settings.accelerometer_data_rate = LSM303DAccelerometerUpdateRate::Hz1600;
-        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM303DAccelerometerFilterBandwidth::Hz773;
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth =
+            LSM303DAccelerometerFilterBandwidth::Hz773;
     }
 
     let accel_mag_device = get_linux_lsm303d_i2c_device().unwrap();
@@ -604,7 +674,6 @@ fn get_lsm303d(frequency: u32) -> LSM303D<LinuxI2CDevice> {
 }
 
 fn get_lsm9ds0(frequency: u32) -> LSM9DS0<LinuxI2CDevice> {
-
     let mut gyro_settings = LSM9DS0GyroscopeSettings {
         DR: LSM9DS0GyroscopeDataRate::Hz190,
         BW: LSM9DS0GyroscopeBandwidth::BW1,
@@ -616,21 +685,18 @@ fn get_lsm9ds0(frequency: u32) -> LSM9DS0<LinuxI2CDevice> {
         continuous_update: true,
         high_pass_filter_enabled: true,
         high_pass_filter_mode: Some(LSM9DS0GyroscopeHighPassFilterMode::NormalMode),
-        high_pass_filter_configuration: Some(LSM9DS0HighPassFilterCutOffConfig::HPCF_3)
+        high_pass_filter_configuration: Some(LSM9DS0HighPassFilterCutOffConfig::HPCF_3),
     };
 
     if frequency <= 95 {
         gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz95;
-    }
-    else if frequency <= 190 {
+    } else if frequency <= 190 {
         gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz190;
         gyro_settings.BW = LSM9DS0GyroscopeBandwidth::BW2;
-    }
-    else if frequency <= 380 {
+    } else if frequency <= 380 {
         gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz380;
         gyro_settings.BW = LSM9DS0GyroscopeBandwidth::BW3;
-    }
-    else {
+    } else {
         gyro_settings.DR = LSM9DS0GyroscopeDataRate::Hz760;
         gyro_settings.BW = LSM9DS0GyroscopeBandwidth::BW4;
     }
@@ -647,28 +713,29 @@ fn get_lsm9ds0(frequency: u32) -> LSM9DS0<LinuxI2CDevice> {
         magnetometer_data_rate: LSM9DS0MagnetometerUpdateRate::Hz100,
         magnetometer_low_power_mode: false,
         magnetometer_mode: LSM9DS0MagnetometerMode::ContinuousConversion,
-        magnetometer_sensitivity: LSM9DS0MagnetometerFS::gauss2
+        magnetometer_sensitivity: LSM9DS0MagnetometerFS::gauss2,
     };
 
     if frequency <= 100 {
         accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz100;
-        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz50;
-    }
-    else if frequency <= 200 {
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth =
+            LSM9DS0AccelerometerFilterBandwidth::Hz50;
+    } else if frequency <= 200 {
         accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz200;
-        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz50;
-    }
-    else if frequency <= 400 {
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth =
+            LSM9DS0AccelerometerFilterBandwidth::Hz50;
+    } else if frequency <= 400 {
         accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz400;
-        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz194;
-    }
-    else if frequency <= 800 {
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth =
+            LSM9DS0AccelerometerFilterBandwidth::Hz194;
+    } else if frequency <= 800 {
         accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz800;
-        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz194;
-    }
-    else {
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth =
+            LSM9DS0AccelerometerFilterBandwidth::Hz194;
+    } else {
         accel_mag_settings.accelerometer_data_rate = LSM9DS0AccelerometerUpdateRate::Hz1600;
-        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth = LSM9DS0AccelerometerFilterBandwidth::Hz773;
+        accel_mag_settings.accelerometer_anti_alias_filter_bandwidth =
+            LSM9DS0AccelerometerFilterBandwidth::Hz773;
     }
 
     let (gyro, accel) = get_default_lsm9ds0_linux_i2c_devices().unwrap();

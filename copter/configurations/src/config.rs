@@ -7,22 +7,22 @@ use std::io::prelude::*;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct PID {
-    p: Option<f32>,
-    i: Option<f32>,
-    d: Option<f32>,
+    pub p: Option<f32>,
+    pub i: Option<f32>,
+    pub d: Option<f32>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Flight {
-    roll: PID,
-    pitch: PID,
-    yaw: PID,
+    pub roll: PID,
+    pub pitch: PID,
+    pub yaw: PID,
 }
 
 /*----- Hardware -----*/
 
 #[derive(Debug, Deserialize, Serialize)]
-enum SerialCommunication {
+pub enum SerialCommunication {
     UART, // Unused currently
     I2C,
     SPI, // Unused currently
@@ -30,55 +30,55 @@ enum SerialCommunication {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Sensor {
-    name: String,
-    update_rate: Option<i32>,
-    serial: SerialCommunication,
-    slave_address: u16,
+    pub name: String,
+    pub update_rate: Option<i32>,
+    pub serial: SerialCommunication,
+    pub slave_address: u16,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Motors {
-    pins: Vec<u32>,
-    serial_pwm: bool,
-    serial_controller: Option<Sensor>,
+    pub pins: Vec<u32>,
+    pub serial_pwm: bool,
+    pub serial_controller: Option<Sensor>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Hardware {
-    gps: bool,
-    wifi_gps: bool,
-    barometer: Option<Sensor>,
-    gyroscope: Sensor,
-    accelerometer: Sensor,
-    magnetometer: Option<Sensor>,
-    analog_converter: Option<Sensor>,
-    motors: Motors,
+    pub gps: bool,
+    pub wifi_gps: bool,
+    pub barometer: Sensor,
+    pub gyroscope: Sensor,
+    pub accelerometer: Sensor,
+    pub magnetometer: Sensor,
+    pub analog_converter: Option<Sensor>,
+    pub motors: Motors,
 }
 
 /*----- Networking -----*/
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Networking {
-    server_ip: String,
-    server_port: i32,
+    pub server_ip: String,
+    pub server_port: i32,
 }
 
 /*----- Debug -----*/
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Debug {
-    live_debugging: bool,
-    debug_websocket_port: i32,
-    logging: bool,
-    motors_off: bool,
+    pub live_debugging: bool,
+    pub debug_websocket_port: i32,
+    pub logging: bool,
+    pub motors_off: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Config {
-    flight: Flight,
-    hardware: Hardware,
-    networking: Networking,
-    debug: Debug,
+    pub flight: Flight,
+    pub hardware: Hardware,
+    pub networking: Networking,
+    pub debug: Debug,
 }
 
 impl Config {
@@ -127,12 +127,12 @@ impl Default for Config {
             hardware: Hardware {
                 gps: false,
                 wifi_gps: false,
-                barometer: Some(Sensor {
+                barometer: Sensor {
                     name: String::from("Barometer Model"),
                     update_rate: Some(100),
                     serial: SerialCommunication::I2C,
                     slave_address: 0,
-                }),
+                },
                 gyroscope: Sensor {
                     name: String::from("Gyroscope Model"),
                     update_rate: Some(100),
@@ -145,12 +145,12 @@ impl Default for Config {
                     serial: SerialCommunication::I2C,
                     slave_address: 0,
                 },
-                magnetometer: Some(Sensor {
+                magnetometer: Sensor {
                     name: String::from("Magnetometer Model"),
                     update_rate: Some(100),
                     serial: SerialCommunication::I2C,
                     slave_address: 0,
-                }),
+                },
                 analog_converter: Some(Sensor {
                     name: String::from("Analog to Digital Converter"),
                     update_rate: Some(100),

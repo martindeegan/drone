@@ -23,11 +23,13 @@ impl ModuleLogger {
     }
 
     pub fn error(&self, message: &str) {
-        println!(
-            "{}",
-            Red.paint(format!("[{}]: {}", (&self).module, self.err_msg))
-        );
         println!("{}", Red.paint(format!("[{}]: {}", self.module, message)));
+        if !self.err_msg.is_empty() {
+            println!(
+                "{}",
+                Red.paint(format!("[{}]: {}", (&self).module, self.err_msg))
+            );
+        }
     }
 
     pub fn success(&self, message: &str) {

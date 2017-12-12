@@ -1,16 +1,17 @@
-
 // pub mod gps;
 // pub mod motors;
 // pub mod sensors;
-pub mod barometer;
+mod barometer;
+mod imu;
 
-use logger::{FlightLogger, ModuleLogger};
-use configurations::Config;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use logger::ModuleLogger;
+// use configurations::Config;
+// use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 use std::thread::JoinHandle;
 
-// use barometer::Barometer;
+use self::barometer::BarometerThermometer;
+use self::imu::IMU;
 // use self::motors::{MotorManager, SerialMotorManager};
 
 /*
@@ -22,7 +23,34 @@ Channels:
 */
 
 pub fn initialize_hardware() {
-    // Barometer::new();
+    let hardware_logger = ModuleLogger::new(
+        "Hardware",
+        Some("Failed to initialize all hardware. Exiting."),
+    );
+
+    hardware_logger.log("Initializing hardware.");
+
+    // let barometer = match BarometerThermometer::new() {
+    //     Ok(barometer) => barometer,
+    //     Err(_) => {
+    //         hardware_logger.error("Barometer initialization failed.");
+    //         panic!("Barometer initialization failed.");
+    //     }
+    // };
+
+    hardware_logger.success("Barometer initialized.");
+
+    let imu = match IMU::new() {
+        Ok(imu) => imu,
+        Err(_) => {
+            hardware_logger.error("IMU initialization failed.");
+            panic!("IMU initialization failed.");
+        }
+    };
+
+    hardware_logger.success("IMU initialized.");
+
+    let hardware_handle = thread::spawn(move || {});
 }
 
 // pub fn initialize_hardware() -> (
