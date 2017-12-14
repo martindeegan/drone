@@ -1,2 +1,0 @@
-rsync -uv -r --exclude '*target/*' --exclude '.git/' --exclude '.idea/' -e ssh src/ $RPI_ADDR:/home/pi/$DRONE_FOLDER/src
-rsync -uv -r --exclude '*target/*' --exclude '.git/' --exclude '.idea/' -e ssh Cargo.toml $RPI_ADDR:/home/pi/$DRONE_FOLDER/Cargo.toml

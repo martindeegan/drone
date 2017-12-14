@@ -31,14 +31,14 @@ pub enum SerialCommunication {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Sensor {
     pub name: String,
-    pub update_rate: Option<i32>,
-    pub serial: SerialCommunication,
-    pub slave_address: u16,
+    pub update_rate: Option<i32>,    //Unused
+    pub serial: SerialCommunication, // Unused
+    pub slave_address: u16,          // Unused
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Motors {
-    pub pins: Vec<u32>,
+    pub pins: Vec<u8>,
     pub serial_pwm: bool,
     pub serial_controller: Option<Sensor>,
 }
@@ -85,7 +85,7 @@ impl Config {
     pub fn new() -> Result<Config, String> {
         let mut config_file: File = match File::open("configuration/config.toml") {
             Ok(file) => file,
-            Err(e) => {
+            Err(_) => {
                 println!("Couldn't open config.toml! Opening config_default.toml.");
                 File::open("configuration/config_default.toml").unwrap()
             }

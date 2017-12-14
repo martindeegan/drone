@@ -18,11 +18,12 @@ pca9685 = { path = "./local/rust-pca9685" }
 ads111x = { path = "./local/rust-ads1115" }
 unbounded-gpsd = "0.4.2"
 wifilocation = { path = "./local/wifilocation" }
-typenum = "1.7.0"
 mqtt-protocol = "0.4"
 configurations = { path = "./configurations" }
 logger = { path = "./logger" }
 nalgebra = "0.13.1"
+typenum = "1.9.0"
+num = "0.1"
 
 [[bin]]
 name = "drone"

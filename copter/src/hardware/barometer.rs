@@ -11,6 +11,7 @@ use std::cell::RefCell;
 use std::thread::sleep;
 use std::time::Duration;
 
+use super::mock::MockSensor;
 
 pub struct BarometerThermometer {
     barometer: Rc<RefCell<Barometer<Error = LinuxI2CError>>>,
@@ -24,6 +25,14 @@ impl BarometerThermometer {
 
         let mut barometer: Option<Rc<RefCell<Barometer<Error = LinuxI2CError>>>> = None;
 
+        #[cfg(not(target_arch = "arm"))]
+        {
+            logger.log("Initializing mock barometer.");
+            let mock_sensor = Rc::new(RefCell::new(MockSensor::new()));
+            barometer = Some(mock_sensor.clone());
+        }
+
+        #[cfg(target_arch = "arm")]
         match config.hardware.barometer.name.as_ref() {
             "BMP180" => {
                 logger.error("BMP180 not implemented yet.");
@@ -63,6 +72,16 @@ impl BarometerThermometer {
         }
 
         Ok(manager)
+    }
+
+    pub fn read_pressure(&mut self) -> f32 {
+        match self.barometer.borrow_mut().pressure_kpa() {
+            Ok(pressure) => pressure,
+            Err(e) => {
+                self.logger.error("Couldn't read barometer.");
+                panic!(e.to_string());
+            }
+        }
     }
 }
 
