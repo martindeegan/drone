@@ -8,9 +8,9 @@ use i2cdev_lsm9ds0::*;
 use i2csensors::{Accelerometer, Gyroscope, Magnetometer};
 use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
 
-// use na::{zero, Matrix, MatrixArray, MatrixMN, Vector, Vector3};
-// use typenum::{U1, U1000, U9};
-// use num::traits::Zero;
+use na::{zero, Matrix, MatrixArray, MatrixMN, Vector, Vector3};
+use typenum::{U1, U1000, U9};
+use num::traits::Zero;
 
 // type Matrix1000x9 = Matrix<f32, U1000, U9, MatrixArray<f32, U1000, U9>>;
 // type Vector9 = Vector<f32, U9, MatrixArray<f32, U1, U9>>;
