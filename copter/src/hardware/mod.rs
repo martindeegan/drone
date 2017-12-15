@@ -25,13 +25,6 @@ use self::motors::{MotorManager, SerialMotorManager};
 use self::gps::{get_gps, GPSData};
 
 pub use self::motors::MotorCommand;
-/*
-Channels:
-1) IMU
-2) GPS
-3) Barometer / Thermometer
-4) Motor
-*/
 
 pub fn initialize_hardware() -> (
     JoinHandle<()>,
@@ -99,23 +92,52 @@ pub fn initialize_hardware() -> (
         })
         .unwrap();
 
-
     (hardware_handle, pred_rx, update_rx, motor_tx, control_tx)
+}
+
+pub fn calibrate_sensors() {
+    let hardware_logger =
+        ModuleLogger::new("Hardware", Some("Failed to calibrate hardware. Exiting."));
+
+    let mut imu = match IMU::new() {
+        Ok(imu) => imu,
+        Err(_) => {
+            hardware_logger.error("IMU initialization failed.");
+            panic!("IMU initialization failed.");
+        }
+    };
+
+    imu.calibrate_sensors();
+}
+
+pub fn calibrate_motors() {
+    let hardware_logger =
+        ModuleLogger::new("Hardware", Some("Failed to calibrate hardware. Exiting."));
+
+    let mut motor_manager = match SerialMotorManager::new() {
+        Ok(motors) => motors,
+        Err(_) => {
+            hardware_logger.error("Motor initialization failed.");
+            panic!("Motor initialization failed.");
+        }
+    };
+
+    motor_manager.calibrate();
 }
 
 #[derive(Debug)]
 pub struct PredictionReading {
-    angular_rate: Vector3<f32>,
-    acceleration: Vector3<f32>,
-    gps_information: Option<GPSData>,
+    pub angular_rate: Vector3<f32>,
+    pub acceleration: Vector3<f32>,
+    pub gps_information: Option<GPSData>,
 }
 
 #[derive(Debug)]
 pub struct UpdateReading {
-    acceleration: Vector3<f32>,
-    magnetic_reading: Option<Vector3<f32>>,
-    pressure: f32,
-    gps_information: Option<GPSData>,
+    pub acceleration: Vector3<f32>,
+    pub magnetic_reading: Option<Vector3<f32>>,
+    pub pressure: f32,
+    pub gps_information: Option<GPSData>,
 }
 
 fn hardware_loop(

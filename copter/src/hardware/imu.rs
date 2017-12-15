@@ -8,14 +8,17 @@ use i2cdev_lsm9ds0::*;
 use i2csensors::{Accelerometer, Gyroscope, Magnetometer};
 use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
 
-use na::{zero, Matrix, MatrixArray, MatrixMN, Vector, Vector3};
-use typenum::{U1, U1000, U9};
+use na::{try_inverse, zero, Matrix, Matrix3, Matrix4, MatrixArray, MatrixMN, MatrixN, MatrixVec,
+         Vector, Vector3, VectorN};
+use na::{U100, U3, U4, U9};
+use typenum::U200;
 use num::traits::Zero;
 
-// type Matrix1000x9 = Matrix<f32, U1000, U9, MatrixArray<f32, U1000, U9>>;
-// type Vector9 = Vector<f32, U9, MatrixArray<f32, U1, U9>>;
+type Matrix200x9 = Matrix<f32, U200, U9, MatrixArray<f32, U200, U9>>;
+type Vector9 = VectorN<f32, U9>;
+type Vector200 = VectorN<f32, U200>;
 
-use configurations::{Calibrations, Config};
+use configurations::{Calibrations, Config, Ellipsoid, Simple};
 use logger::ModuleLogger;
 
 use super::mock::MockSensor;
@@ -164,37 +167,166 @@ impl IMU {
         }
     }
 
-    pub fn calibrate_sensors(&mut self) {}
+    pub fn calibrate_sensors(&mut self) {
+        let mut calibrations = Calibrations::new().unwrap();
+        self.calibrate_magnetometer(&mut calibrations);
+        self.calibrate_gyroscope(&mut calibrations);
+        self.calibrate_accelerometer(&mut calibrations);
 
-    fn calibrate_magnetometer(&mut self) {
-        // println!("You are now going to calibrate the magnetometer.");
-        // println!("Keep the drone several feet away from any metal.");
-        // println!("During the calibration spin the drone to get samples from every direction.");
-        // println!("Press enter to begin...");
-        // let mut input = String::new();
-        // io::stdin().read_line(&mut input).unwrap();
+        calibrations.save().unwrap();
+    }
 
-        // let mut D = Matrix1000x9::from_element(0.0);
+    fn calibrate_magnetometer(&mut self, calibs: &mut Calibrations) {
+        println!("You are now going to calibrate the magnetometer.");
+        println!("Keep the drone several feet away from any metal.");
+        println!("During the calibration spin the drone to get samples from every direction.");
+        println!("Press enter to begin...");
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
 
-        // println!("3...");
-        // sleep(Duration::from_secs(1));
-        // println!("2...");
-        // sleep(Duration::from_secs(1));
-        // println!("1...");
-        // sleep(Duration::from_secs(1));
-        // println!("Go!");
-        // for i in 0..1000 {
-        //     let magnetic_reading = self.read_magnetometer().unwrap();
-        //     for col 1..10 {
-        //         D.row(i).column(col) = match col {
-        //             1 => magnetic_reading.x * magnetic_reading.x,
-        //             _ => 0.0
-        //         }
-        //     }
-        //     sleep(Duration::from_millis(10));
-        // }
+        let mut D = Matrix200x9::new_random();
 
-        // // Run sphere fitting on data
+        println!("3...");
+        sleep(Duration::from_secs(1));
+        println!("2...");
+        sleep(Duration::from_secs(1));
+        println!("1...");
+        sleep(Duration::from_secs(1));
+        println!("Go!");
+        for i in 0..200 {
+            let magnetic_reading = self.read_magnetometer().unwrap();
+            let D_i = Vector9::from_fn(|r, c| match r {
+                0 => magnetic_reading.x * magnetic_reading.x,
+                1 => magnetic_reading.y * magnetic_reading.y,
+                2 => magnetic_reading.z * magnetic_reading.z,
+                3 => 2.0 * magnetic_reading.x * magnetic_reading.y,
+                4 => 2.0 * magnetic_reading.x * magnetic_reading.z,
+                5 => 2.0 * magnetic_reading.y * magnetic_reading.z,
+                6 => 2.0 * magnetic_reading.x,
+                7 => 2.0 * magnetic_reading.y,
+                8 => 2.0 * magnetic_reading.z,
+                _ => 0.0,
+            });
+
+            D.row_mut(i).copy_from(&D_i.transpose());
+
+            sleep(Duration::from_millis(125));
+        }
+
+        // Rotated ellipsoid fitting
+        let mut ones: Vector200 = Vector200::from_element(1.0);
+
+        // v[9x1] = (D^T D)^(-1)D^T
+        let v = (D.transpose() * D).try_inverse().unwrap() * (&D.transpose() * ones);
+
+        // Auxillary matrices
+        let A_4: Matrix4<f32> = Matrix4::new(
+            v.data[0],
+            v.data[3],
+            v.data[4],
+            v.data[6],
+            v.data[3],
+            v.data[1],
+            v.data[5],
+            v.data[7],
+            v.data[4],
+            v.data[5],
+            v.data[2],
+            v.data[8],
+            v.data[6],
+            v.data[7],
+            v.data[8],
+            -1.0,
+        );
+        let A_3: Matrix3<f32> = Matrix3::new(
+            v.data[0],
+            v.data[3],
+            v.data[4],
+            v.data[3],
+            v.data[1],
+            v.data[5],
+            v.data[4],
+            v.data[5],
+            v.data[2],
+        );
+        let v_ghi: Vector3<f32> = Vector3::new(v.data[6], v.data[7], v.data[8]);
+
+        // Compute offsets
+        let offsets = -1.0 * A_3.try_inverse().unwrap() * v_ghi;
+
+        // More auxillary matrices
+        let T: Matrix4<f32> = Matrix4::new(
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            offsets.data[0],
+            offsets.data[1],
+            offsets.data[2],
+            1.0,
+        );
+        let B_4 = T * A_4 * T.transpose();
+        let b_44 = -1.0 * B_4.data[15];
+        let B_3: Matrix3<f32> = B_4.fixed_resize(0.0) / b_44;
+
+        // Compute gains and rotation
+        let eigen_decomp = B_3.symmetric_eigen();
+        let gains: Vector3<f32> = eigen_decomp.eigenvalues;
+        let rotation: Matrix3<f32> = eigen_decomp.eigenvectors;
+
+        calibs.magnetometer = Some(Ellipsoid::new(offsets, rotation, gains));
+    }
+
+    fn calibrate_gyroscope(&mut self, calibs: &mut Calibrations) {
+        println!("Place the drone on a level surface.");
+        sleep(Duration::from_secs(5));
+        println!("3...");
+        sleep(Duration::from_secs(1));
+        println!("2...");
+        sleep(Duration::from_secs(1));
+        println!("1...");
+        sleep(Duration::from_secs(1));
+        println!("Go!");
+
+        let mut offsets = self.read_gyroscope().unwrap();
+        for i in 0..200 {
+            offsets += self.read_gyroscope().unwrap();
+            sleep(Duration::from_millis(20));
+        }
+
+        offsets /= 201.0;
+
+        calibs.gyroscope = Some(Simple::new(offsets));
+    }
+
+    fn calibrate_accelerometer(&mut self, calibs: &mut Calibrations) {
+        println!("Place the drone on a level surface.");
+        sleep(Duration::from_secs(5));
+        println!("3...");
+        sleep(Duration::from_secs(1));
+        println!("2...");
+        sleep(Duration::from_secs(1));
+        println!("1...");
+        sleep(Duration::from_secs(1));
+        println!("Go!");
+
+        let mut offsets = self.read_accelerometer().unwrap();
+        for i in 0..200 {
+            offsets += self.read_accelerometer().unwrap();
+            sleep(Duration::from_millis(20));
+        }
+
+        offsets /= 201.0;
+
+        calibs.accelerometer = Some(Ellipsoid::new(offsets, Matrix3::zero(), Vector3::zero()));
     }
 }
 

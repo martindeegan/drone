@@ -4,59 +4,99 @@ use toml;
 use std::io::prelude::*;
 use std::string::String;
 
+use na::{Matrix3, Vector3};
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Simple {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
+    pub offsets: Vec<f32>
+}
+
+impl Simple {
+    pub fn new(offsets: Vector3<f32>) -> Simple {
+        Simple {
+            offsets: offsets.as_slice().to_vec(),
+        }
+    }
+
+    pub fn get_offsets(&self) -> Vector3<f32> {
+        Vector3::from_column_slice(&self.offsets)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct Spatial {
-    pub xx: f32,
-    pub xy: f32,
-    pub xz: f32,
-    pub yx: f32,
-    pub yy: f32,
-    pub yz: f32,
-    pub zx: f32,
-    pub zy: f32,
-    pub zz: f32,
+pub struct Ellipsoid {
+    pub offsets: Vec<f32>,
+    pub rotation: Vec<f32>,
+    pub gains: Vec<f32>
+}
+
+impl Ellipsoid {
+    pub fn new(offsets: Vector3<f32>, rotation: Matrix3<f32>, gains: Vector3<f32>) -> Ellipsoid {
+        Ellipsoid {
+            offsets: offsets.as_slice().to_vec(),
+            rotation: rotation.as_slice().to_vec(),
+            gains: gains.as_slice().to_vec()
+        }
+    }
+
+    pub fn get_offsets(&self) -> Vector3<f32> {
+        Vector3::from_column_slice(&self.offsets)
+    }
+
+    pub fn get_rotation(&self) -> Matrix3<f32> {
+        Matrix3::from_column_slice(&self.rotation)
+    }
+
+    pub fn get_gains(&self) -> Vector3<f32> {
+        Vector3::from_column_slice(&self.gains)
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Calibrations {
     pub gyroscope: Option<Simple>,
-    pub accelerometer: Option<Spatial>,
-    pub magnetometer: Option<Spatial>,
+    pub accelerometer: Option<Ellipsoid>,
+    pub magnetometer: Option<Ellipsoid>,
 }
 
 impl Calibrations {
     pub fn new() -> Result<Calibrations, String> {
         let mut calibration_file: File = match OpenOptions::new()
+            .read(true)
+            .write(true)
             .create(true)
             .open("configuration/calibrations.toml")
         {
             Ok(file) => file,
-            Err(e) => return Err(e.to_string()),
+            Err(e) => {
+                println!("1: {:?}", e);
+                return Err(e.to_string());
+            }
         };
 
         let mut calibration_string = String::new();
         match calibration_file.read_to_string(&mut calibration_string) {
             Ok(_size) => {}
-            Err(e) => return Err(e.to_string()),
+            Err(e) => {
+                println!("2: {:?}", e);
+                return Err(e.to_string());
+            }
         };
 
         match toml::from_str(calibration_string.as_ref()) {
             Ok(calib) => Ok(calib),
-            Err(e) => Err(e.to_string()),
+            Err(e) => {
+                println!("3: {:?}", e);
+                return Err(e.to_string());
+            }
         }
     }
 
     pub fn save(&self) -> Result<(), String> {
         let mut calibration_file: File = match OpenOptions::new()
-            .create(true)
+            .read(true)
             .write(true)
+            .create(true)
             .open("configuration/calibrations.toml")
         {
             Ok(file) => file,
@@ -78,33 +118,9 @@ impl Calibrations {
 impl Default for Calibrations {
     fn default() -> Calibrations {
         Calibrations {
-            gyroscope: Some(Simple {
-                x: 0.0,
-                y: 0.0,
-                z: 0.0,
-            }),
-            accelerometer: Some(Spatial {
-                xx: 0.0,
-                xy: 0.0,
-                xz: 0.0,
-                yx: 0.0,
-                yy: 0.0,
-                yz: 0.0,
-                zx: 0.0,
-                zy: 0.0,
-                zz: 0.0,
-            }),
-            magnetometer: Some(Spatial {
-                xx: 0.0,
-                xy: 0.0,
-                xz: 0.0,
-                yx: 0.0,
-                yy: 0.0,
-                yz: 0.0,
-                zx: 0.0,
-                zy: 0.0,
-                zz: 0.0,
-            }),
+            gyroscope: None,
+            accelerometer: None,
+            magnetometer: None,
         }
     }
 }

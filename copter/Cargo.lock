@@ -159,6 +159,7 @@ dependencies = [
 name = "configurations"
 version = "0.1.0"
 dependencies = [
+ "nalgebra 0.13.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.24 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.24 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)",

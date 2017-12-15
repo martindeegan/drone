@@ -14,7 +14,6 @@ const MIN_VALUE: f32 = 1000.0;
 pub enum MotorCommand {
     PowerDown,
     Arm,
-    Calibrate,
     SetPower(f32, f32, f32, f32),
 }
 
@@ -108,9 +107,6 @@ impl MotorManager for SerialMotorManager {
             MotorCommand::SetPower(m1, m2, m3, m4) => {
                 self.set_powers([m1, m2, m3, m4]);
             }
-            MotorCommand::Calibrate => {
-                self.calibrate();
-            }
         };
     }
 
@@ -126,6 +122,7 @@ impl MotorManager for SerialMotorManager {
 }
 
 /* ---------- Mock Motor Manager ----------------*/
+// Would be nice to move this into mock.rs
 
 #[cfg(not(target_arch = "arm"))]
 pub struct SerialMotorManager {}
@@ -133,6 +130,8 @@ pub struct SerialMotorManager {}
 #[cfg(not(target_arch = "arm"))]
 impl SerialMotorManager {
     pub fn new() -> Result<SerialMotorManager, ()> {
+        let logger = ModuleLogger::new("Motors", Some("Check if your serial pwm controller is properly connected or change your configuration."));
+        logger.log("Initializing Motor Manager.");
         Ok(SerialMotorManager {})
     }
 }

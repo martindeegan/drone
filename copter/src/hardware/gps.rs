@@ -91,6 +91,8 @@ pub fn get_gps() -> Receiver<GPSData> {
         });
 
     /*--------- Mock GPS -----------*/
+    // Would be nice to move this into mock.rs
+
     #[cfg(not(target_arch = "arm"))]
     thread::spawn(move || {
         let gps_logger = ModuleLogger::new("GPS", None);
@@ -103,13 +105,13 @@ pub fn get_gps() -> Receiver<GPSData> {
     });
 
     /*--------- Check that GPS is tracking -----------*/
-    match gps_rx.recv_timeout(Duration::from_secs(60)) {
-        Ok(_) => logger.log("GPS check."),
-        Err(err) => {
-            logger.error("GPS failed to respond in time. Check that GPSD is running. Check that your GPS is running correctly. Check GPS fix.");
-            panic!("{:?}", err);
-        }
-    }
+    // match gps_rx.recv_timeout(Duration::from_secs(60)) {
+    //     Ok(_) => logger.log("GPS check."),
+    //     Err(err) => {
+    //         logger.error("GPS failed to respond in time. Check that GPSD is running. Check that your GPS is running correctly. Check GPS fix.");
+    //         panic!("{:?}", err);
+    //     }
+    // }
 
     gps_rx
 }
@@ -135,22 +137,22 @@ fn process_gps_response(response: Response) -> Option<GPSData> {
 fn process_tpv_response(response: TpvResponse) -> Option<GPSData> {
     match response {
         TpvResponse::Fix3D {
-            device: device,
-            time: time,
-            mode: mode,
-            time_err: time_err,
-            lat: lat,
-            lat_err: lat_err,
-            lon: lon,
-            lon_err: lon_err,
-            alt: alt,
-            alt_err: alt_err,
-            track: track,
-            track_err: track_err,
-            speed: speed,
-            speed_err: speed_err,
-            climb: climb,
-            climb_err: climb_err,
+            device,
+            time,
+            mode,
+            time_err,
+            lat,
+            lat_err,
+            lon,
+            lon_err,
+            alt,
+            alt_err,
+            track,
+            track_err,
+            speed,
+            speed_err,
+            climb,
+            climb_err,
         } => Some(GPSData {
             latitude: lat,
             longitude: lon,
@@ -160,18 +162,18 @@ fn process_tpv_response(response: TpvResponse) -> Option<GPSData> {
             track: track,
         }),
         TpvResponse::Fix2D {
-            device: device,
-            time: time,
-            mode: mode,
-            time_err: time_err,
-            lat: lat,
-            lat_err: lat_err,
-            lon: lon,
-            lon_err: lon_err,
-            track: track,
-            track_err: track_err,
-            speed: speed,
-            speed_err: speed_err,
+            device,
+            time,
+            mode,
+            time_err,
+            lat,
+            lat_err,
+            lon,
+            lon_err,
+            track,
+            track_err,
+            speed,
+            speed_err,
         } => Some(GPSData {
             latitude: lat,
             longitude: lon,
@@ -181,22 +183,22 @@ fn process_tpv_response(response: TpvResponse) -> Option<GPSData> {
             track: track,
         }),
         TpvResponse::LatLonOnly {
-            device: device,
-            time: time,
-            mode: mode,
-            time_err: time_err,
-            lat: lat,
-            lat_err: lat_err,
-            lon: lon,
-            lon_err: lon_err,
-            alt: alt,
-            alt_err: alt_err,
-            track: track,
-            track_err: track_err,
-            speed: speed,
-            speed_err: speed_err,
-            climb: climb,
-            climb_err: climb_err,
+            device,
+            time,
+            mode,
+            time_err,
+            lat,
+            lat_err,
+            lon,
+            lon_err,
+            alt,
+            alt_err,
+            track,
+            track_err,
+            speed,
+            speed_err,
+            climb,
+            climb_err,
         } => Some(GPSData {
             latitude: lat,
             longitude: lon,
