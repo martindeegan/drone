@@ -1,5 +1,6 @@
 use i2csensors::{Accelerometer, Barometer, Gyroscope, Magnetometer, Vec3};
 use i2cdev::linux::LinuxI2CError;
+use super::motors::{MotorCommand, MotorManager};
 
 pub type MockSensorError = LinuxI2CError;
 
@@ -40,4 +41,12 @@ impl Magnetometer for MockSensor {
     fn magnetic_reading(&mut self) -> Result<Vec3, Self::Error> {
         Ok(Vec3::zeros())
     }
+}
+
+impl MotorManager for MockSensor {
+    fn arm(&mut self) {}
+    fn terminate(&mut self) {}
+    fn set_powers(&mut self, powers: [f32; 4]) {}
+    fn process_command(&mut self, command: MotorCommand) {}
+    fn calibrate(&mut self) {}
 }

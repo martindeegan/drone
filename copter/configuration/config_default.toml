@@ -50,6 +50,11 @@ slave_address = 0
 pins = [1, 2, 3, 4]
 serial_pwm = true
 
+[hardware.battery]
+cells = 0
+warning_voltage = 0.0
+critical_voltage = 0.0
+
 [hardware.motors.serial_controller]
 name = "PWM Controller"
 serial = "I2C"

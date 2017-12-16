@@ -7,6 +7,8 @@ use std::thread;
 use std::thread::{sleep, Builder, JoinHandle};
 
 use na::Vector3;
+use na::geometry::UnitQuaternion;
+
 use time::{Duration, PreciseTime};
 use i2csensors::{Accelerometer, Barometer, Gyroscope, Magnetometer};
 
@@ -17,14 +19,19 @@ mod barometer;
 mod imu;
 mod motors;
 mod gps;
+mod battery;
 mod mock;
 
 use self::barometer::BarometerThermometer;
 use self::imu::IMU;
 use self::motors::{MotorManager, SerialMotorManager};
 use self::gps::{get_gps, GPSData};
+use self::battery::{BatteryMonitor, BatteryStatus};
 
 pub use self::motors::MotorCommand;
+
+const MILLISECONDS_PER_SECOND: i64 = 1000;
+const LOOP_FREQUENCY: i64 = 95; // 95 Hz Loop
 
 pub fn initialize_hardware() -> (
     JoinHandle<()>,
@@ -77,6 +84,18 @@ pub fn initialize_hardware() -> (
             let mut gps_rx = get_gps();
             hardware_logger.success("GPS started.");
 
+            /*
+            let battery_monitor = match BatteryMonitor::new() {
+                Ok(monitor) => monitor,
+                Err(()) => {
+                    hardware_logger.error("Battery monitor initialization failed.");
+                    panic!("Battery monitor initialization failed.");
+                }
+            };
+
+            hardware_logger.success("Battery monitor initialized.");
+            */
+
             hardware_logger.success("All hardware initialized successfully.");
 
             hardware_loop(
@@ -127,7 +146,7 @@ pub fn calibrate_motors() {
 
 #[derive(Debug)]
 pub struct PredictionReading {
-    pub angular_rate: Vector3<f32>,
+    pub angular_rate: UnitQuaternion<f32>,
     pub acceleration: Vector3<f32>,
     pub gps_information: Option<GPSData>,
 }
@@ -211,11 +230,11 @@ fn hardware_loop(
         };
 
         let finish_time = PreciseTime::now();
-        let diff = Duration::milliseconds(10) - start_time.to(finish_time);
+        let diff = Duration::milliseconds(MILLISECONDS_PER_SECOND / LOOP_FREQUENCY)
+            - start_time.to(finish_time);
         if diff > Duration::zero() {
             sleep(diff.to_std().unwrap());
         }
-
 
         match control_rx.try_recv() {
             Ok(_) => {

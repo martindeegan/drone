@@ -27,7 +27,10 @@ use std::io;
 use std::io::Read;
 use std::process::exit;
 
-use na::{Matrix3, Vector3};
+use na::{Matrix3, MatrixN, Vector3};
+use na::U20;
+
+type Matrix100 = MatrixN<f32, U20>;
 
 use logger::ModuleLogger;
 
@@ -68,14 +71,6 @@ fn main() {
             start_flight();
         }
     };
-
-
-    // for i in 0..200 {
-    //     println!("{:?}", pred_rx.recv().unwrap());
-    //     println!("{:?}", update_rx.recv().unwrap());
-
-    //     motor_tx.send(MotorCommand::SetPower(0.0, 0.0, 0.0, 0.0));
-    // }
 }
 
 fn start_flight() {
@@ -83,7 +78,6 @@ fn start_flight() {
 
     let (hardware_join_handle, pred_rx, update_rx, motor_tx, hardware_control_tx) =
         initialize_hardware();
-
 
     let calibs = Calibrations::new().unwrap();
     let mag = calibs.magnetometer.unwrap();
@@ -94,29 +88,6 @@ fn start_flight() {
     for i in 0..10000 {
         let pred = pred_rx.recv().unwrap();
         let update = update_rx.recv().unwrap();
-
-        let mag_reading = update.magnetic_reading;
-        if mag_reading.is_some() {
-            println!(
-                "Un-corrected: x:{:.2},y:{:.2},z:{:.2},m:{:.2}",
-                mag_reading.clone().unwrap().x,
-                mag_reading.clone().unwrap().y,
-                mag_reading.clone().unwrap().z,
-                mag_reading.clone().unwrap().norm()
-            );
-
-            let offset_corrected: Vector3<f32> = mag_reading.unwrap() - offsets;
-            let rotation_corrected: Vector3<f32> = rotation * offset_corrected;
-            let gain_corrected: Vector3<f32> = rotation_corrected.component_div(&gains);
-
-            println!(
-                "Corrected: x:{:.2},y:{:.2},z:{:.2},m:{:.2}",
-                gain_corrected.x,
-                gain_corrected.y,
-                gain_corrected.z,
-                gain_corrected.norm()
-            );
-        }
 
         motor_tx.send(MotorCommand::SetPower(0.0, 0.0, 0.0, 0.0));
     }

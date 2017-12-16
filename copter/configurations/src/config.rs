@@ -44,6 +44,13 @@ pub struct Motors {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct Battery {
+    pub cells: i32,
+    pub warning_voltage: f32,  // Per cell
+    pub critical_voltage: f32, // Per cell
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Hardware {
     pub gps: bool,
     pub wifi_gps: bool,
@@ -53,6 +60,7 @@ pub struct Hardware {
     pub magnetometer: Sensor,
     pub analog_converter: Option<Sensor>,
     pub motors: Motors,
+    pub battery: Battery,
 }
 
 /*----- Networking -----*/
@@ -166,6 +174,11 @@ impl Default for Config {
                         serial: SerialCommunication::I2C,
                         slave_address: 0,
                     }),
+                },
+                battery: Battery {
+                    cells: 0,
+                    warning_voltage: 0.0,
+                    critical_voltage: 0.0,
                 },
             },
             networking: Networking {

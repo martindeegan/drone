@@ -11,6 +11,7 @@ use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
 use na::{try_inverse, zero, Matrix, Matrix3, Matrix4, MatrixArray, MatrixMN, MatrixN, MatrixVec,
          Vector, Vector3, VectorN};
 use na::{U100, U3, U4, U9};
+use na::geometry::UnitQuaternion;
 use typenum::U200;
 use num::traits::Zero;
 
@@ -25,17 +26,21 @@ use super::mock::MockSensor;
 
 pub struct IMU {
     gyroscope: Rc<RefCell<Gyroscope<Error = LinuxI2CError>>>,
+    gyroscope_offsets: Vector3<f32>,
     accelerometer: Rc<RefCell<Accelerometer<Error = LinuxI2CError>>>,
+    accelerometer_offsets: Vector3<f32>,
     magnetometer: Rc<RefCell<Magnetometer<Error = LinuxI2CError>>>,
+    magnetometer_offsets: Vector3<f32>,
+    magnetometer_rotation: Matrix3<f32>,
+    magnetometer_gains: Vector3<f32>,
     logger: ModuleLogger,
     // calibrations: Calibrations,
 }
 
 impl IMU {
     pub fn new() -> Result<IMU, ()> {
-        let calibs = Calibrations::new();
-        let config = Config::new().unwrap();
         let logger = ModuleLogger::new("IMU", None);
+        let config = Config::new().unwrap();
 
         let mut gyroscope: Option<Rc<RefCell<Gyroscope<Error = LinuxI2CError>>>> = None;
         let mut accelerometer: Option<Rc<RefCell<Accelerometer<Error = LinuxI2CError>>>> = None;
@@ -93,12 +98,32 @@ impl IMU {
             }
         };
 
-        let imu = IMU {
+        let mut imu = IMU {
             gyroscope: gyroscope.unwrap().clone(),
+            gyroscope_offsets: Vector3::zero(),
             accelerometer: accelerometer.unwrap().clone(),
+            accelerometer_offsets: Vector3::zero(),
             magnetometer: magnetometer.unwrap().clone(),
+            magnetometer_offsets: Vector3::zero(),
+            magnetometer_rotation: Matrix3::zero(),
+            magnetometer_gains: Vector3::zero(),
             logger: logger,
         };
+
+        // Read calibrations
+        let calibs = Calibrations::new().unwrap();
+        if calibs.gyroscope.is_some() {
+            imu.gyroscope_offsets = calibs.gyroscope.unwrap().get_offsets();
+        }
+        if calibs.accelerometer.is_some() {
+            imu.accelerometer_offsets = calibs.accelerometer.unwrap().get_offsets();
+        }
+        if calibs.magnetometer.is_some() {
+            let mag_calibs = calibs.magnetometer.unwrap();
+            imu.magnetometer_offsets = mag_calibs.get_offsets();
+            imu.magnetometer_rotation = mag_calibs.get_rotation();
+            imu.magnetometer_gains = mag_calibs.get_gains();
+        }
 
         // Test IMU readings
         sleep(Duration::from_millis(50));
@@ -137,7 +162,7 @@ impl IMU {
         Ok(imu)
     }
 
-    pub fn read_gyroscope(&mut self) -> Result<Vector3<f32>, ()> {
+    fn read_gyroscope_raw(&mut self) -> Result<Vector3<f32>, ()> {
         match self.gyroscope.borrow_mut().angular_rate_reading() {
             Ok(angular_rate) => Ok(Vector3::new(angular_rate.x, angular_rate.y, angular_rate.z)),
             Err(_) => {
@@ -147,7 +172,7 @@ impl IMU {
         }
     }
 
-    pub fn read_accelerometer(&mut self) -> Result<Vector3<f32>, ()> {
+    fn read_accelerometer_raw(&mut self) -> Result<Vector3<f32>, ()> {
         match self.accelerometer.borrow_mut().acceleration_reading() {
             Ok(acceleration) => Ok(Vector3::new(acceleration.x, acceleration.y, acceleration.z)),
             Err(_) => {
@@ -157,13 +182,43 @@ impl IMU {
         }
     }
 
-    pub fn read_magnetometer(&mut self) -> Result<Vector3<f32>, ()> {
+    fn read_magnetometer_raw(&mut self) -> Result<Vector3<f32>, ()> {
         match self.magnetometer.borrow_mut().magnetic_reading() {
             Ok(magnetic) => Ok(Vector3::new(magnetic.x, magnetic.y, magnetic.z)),
             Err(_) => {
                 self.logger.error("Couldn't read magnetometer.");
                 return Err(());
             }
+        }
+    }
+
+    pub fn read_gyroscope(&mut self) -> Result<UnitQuaternion<f32>, ()> {
+        match self.read_gyroscope_raw() {
+            Ok(angular_rate_raw) => {
+                let angular_rate_euler = angular_rate_raw - self.gyroscope_offsets;
+                Ok(UnitQuaternion::from_euler_angles(
+                    angular_rate_euler.x,
+                    angular_rate_euler.y,
+                    angular_rate_euler.z,
+                ))
+            }
+            Err(_) => Err(()),
+        }
+    }
+    pub fn read_accelerometer(&mut self) -> Result<Vector3<f32>, ()> {
+        match self.read_accelerometer_raw() {
+            Ok(acceleration_raw) => Ok(acceleration_raw - self.accelerometer_offsets),
+            Err(_) => Err(()),
+        }
+    }
+    pub fn read_magnetometer(&mut self) -> Result<Vector3<f32>, ()> {
+        match self.read_magnetometer_raw() {
+            Ok(magnetic_reading_raw) => {
+                let offset_corrected = magnetic_reading_raw - self.magnetometer_offsets;
+                let rotation_corrected = self.magnetometer_rotation * offset_corrected;
+                Ok(rotation_corrected.component_div(&self.magnetometer_gains))
+            }
+            Err(_) => Err(()),
         }
     }
 
@@ -194,7 +249,7 @@ impl IMU {
         sleep(Duration::from_secs(1));
         println!("Go!");
         for i in 0..200 {
-            let magnetic_reading = self.read_magnetometer().unwrap();
+            let magnetic_reading = self.read_magnetometer_raw().unwrap();
             let D_i = Vector9::from_fn(|r, c| match r {
                 0 => magnetic_reading.x * magnetic_reading.x,
                 1 => magnetic_reading.y * magnetic_reading.y,
@@ -210,7 +265,7 @@ impl IMU {
 
             D.row_mut(i).copy_from(&D_i.transpose());
 
-            sleep(Duration::from_millis(125));
+            sleep(Duration::from_millis(100));
         }
 
         // Rotated ellipsoid fitting
@@ -274,20 +329,26 @@ impl IMU {
             1.0,
         );
         let B_4 = T * A_4 * T.transpose();
+        println!("B_4: {:?}", B_4);
+
         let b_44 = -1.0 * B_4.data[15];
         let B_3: Matrix3<f32> = B_4.fixed_resize(0.0) / b_44;
+        println!("B_3: {:?}", B_3);
 
         // Compute gains and rotation
         let eigen_decomp = B_3.symmetric_eigen();
-        let gains: Vector3<f32> = eigen_decomp.eigenvalues;
-        let rotation: Matrix3<f32> = eigen_decomp.eigenvectors;
+        let gains: Vector3<f32> =
+            Vector3::from_fn(|r, c| (1.0 / eigen_decomp.eigenvalues.data[r]).sqrt());
+        let rotation: Matrix3<f32> = eigen_decomp.eigenvectors.try_inverse().unwrap();
 
         calibs.magnetometer = Some(Ellipsoid::new(offsets, rotation, gains));
     }
 
     fn calibrate_gyroscope(&mut self, calibs: &mut Calibrations) {
         println!("Place the drone on a level surface.");
-        sleep(Duration::from_secs(5));
+        println!("Press enter to begin...");
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
         println!("3...");
         sleep(Duration::from_secs(1));
         println!("2...");
@@ -296,9 +357,9 @@ impl IMU {
         sleep(Duration::from_secs(1));
         println!("Go!");
 
-        let mut offsets = self.read_gyroscope().unwrap();
+        let mut offsets = self.read_gyroscope_raw().unwrap();
         for i in 0..200 {
-            offsets += self.read_gyroscope().unwrap();
+            offsets += self.read_gyroscope_raw().unwrap();
             sleep(Duration::from_millis(20));
         }
 
@@ -309,7 +370,9 @@ impl IMU {
 
     fn calibrate_accelerometer(&mut self, calibs: &mut Calibrations) {
         println!("Place the drone on a level surface.");
-        sleep(Duration::from_secs(5));
+        println!("Press enter to begin...");
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
         println!("3...");
         sleep(Duration::from_secs(1));
         println!("2...");
@@ -318,9 +381,9 @@ impl IMU {
         sleep(Duration::from_secs(1));
         println!("Go!");
 
-        let mut offsets = self.read_accelerometer().unwrap();
+        let mut offsets = self.read_accelerometer_raw().unwrap();
         for i in 0..200 {
-            offsets += self.read_accelerometer().unwrap();
+            offsets += self.read_accelerometer_raw().unwrap();
             sleep(Duration::from_millis(20));
         }
 
@@ -367,202 +430,6 @@ fn get_lsm9ds0() -> Result<LSM9DS0<LinuxI2CDevice>, ()> {
         Err(_) => Err(()),
     }
 }
-
-
-//     let (mut barometer, mut thermometer, mut gyroscope, mut accelerometer, mut magnetometer) =
-//         get_sensors();
-//     println!("[Sensors]: Place drone on a flat surface. Then press enter.");
-//     let mut input = String::new();
-//     stdin().read_line(&mut input).expect("Error");
-//     let mut acceleration_calibration = Vec3::zeros();
-//     let mut gyroscope_calibration = Vec3::zeros();
-//     println!("[Sensors]: Calibrating gyroscope. Leave the drone still.");
-
-//     for i in 0..50 {
-//         gyroscope_calibration =
-//             gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
-//         thread::sleep_ms(50);
-//     }
-
-//     println!("[Sensors]: Rotate 90 degrees then press enter.");
-//     let mut input = String::new();
-//     stdin().read_line(&mut input).expect("Error");
-
-//     for i in 0..50 {
-//         gyroscope_calibration =
-//             gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
-//         thread::sleep_ms(50);
-//     }
-
-//     println!("[Sensors]: Rotate 90 degrees then press enter.");
-//     let mut input = String::new();
-//     stdin().read_line(&mut input).expect("Error");
-
-//     for i in 0..50 {
-//         gyroscope_calibration =
-//             gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
-//         thread::sleep_ms(50);
-//     }
-
-//     println!("[Sensors]: Rotate 90 degrees then press enter.");
-//     let mut input = String::new();
-//     stdin().read_line(&mut input).expect("Error");
-
-//     for i in 0..50 {
-//         gyroscope_calibration =
-//             gyroscope_calibration + gyroscope.borrow_mut().angular_rate_reading().unwrap();
-//         thread::sleep_ms(50);
-//     }
-
-//     gyroscope_calibration = gyroscope_calibration / 200.0;
-
-//     println!("[Sensors]: Calibrating magnetometer and accelerometer with ellipsoid fitting.");
-//     println!("Press enter to continue then slowly tumble rotate the drone without any extra accelerations along the drone's axes.");
-//     let mut input = String::new();
-//     stdin().read_line(&mut input).expect("Error");
-
-//     let mut accelerometer_readings: Vec<MultiSensorData> = Vec::new();
-//     let mut magnetometer_readings: Vec<MultiSensorData> = Vec::new();
-
-//     for i in 0..15000 {
-//         let mag_reading = magnetometer.borrow_mut().magnetic_reading().unwrap();
-//         magnetometer_readings.push(mag_reading);
-//         thread::sleep_ms(10);
-//     }
-//     // 'accel_mag: loop {
-//     //     println!("{}", Green.paint("[Sensors]: Rotate the drone arbitrarily and rest it. Press enter to get reading. Type 'stop' to stop."));
-//     //     let mut input = String::new();
-//     //     stdin().read_line(&mut input).expect("Error");
-//     //     match input.trim() {
-//     //         "stop" => { break 'accel_mag; },
-//     //         _ => {
-//     //             let mut accel_mean = MultiSensorData::zeros();
-//     //             let mut mag_mean = MultiSensorData::zeros();
-//     //             for i in 0..150 {
-//     //                 let accel_reading = accelerometer.borrow_mut().acceleration_reading().unwrap();
-//     //                 let mag_reading = magnetometer.borrow_mut().magnetic_reading().unwrap();
-//     //                 accel_mean = accel_mean + accel_reading / 150.0;
-//     //                 mag_mean = mag_mean + mag_reading / 150.0;
-//     //                 thread::sleep_ms(10);
-//     //             }
-//     //             accelerometer_readings.push(accel_mean);
-//     //             magnetometer_readings.push(mag_mean);
-//     //         }
-//     //     }
-//     // }
-
-//     for i in 0..magnetometer_readings.len() {
-//         println!(
-//             "{},{},{}",
-//             magnetometer_readings[i].x, magnetometer_readings[i].y, magnetometer_readings[i].z
-//         );
-//     }
-//     // for i in 0..magnetometer_readings.len() {
-//     //     println!("{},{},{},{},{},{}", accelerometer_readings[i].x, accelerometer_readings[i].y, accelerometer_readings[i].z, magnetometer_readings[i].x, magnetometer_readings[i].y, magnetometer_readings[i].z);
-//     // }
-
-//     // println!("{}", Cyan.paint("[Sensors]: Finished gathering data. Computing calibration settings now."));
-//     // let mut accelerometer_D: Vec<f32> = Vec::new();
-//     // let mut magnetometer_D: Vec<f32> = Vec::new();
-//     //
-//     // for reading in accelerometer_readings {
-//     //     let D_1 = reading.x * reading.x;
-//     //     let D_2 = reading.y * reading.y;
-//     //     let D_3 = reading.z * reading.z;
-//     //     let D_4 = reading.x * reading.y * 2.0;
-//     //     let D_5 = reading.x * reading.z * 2.0;
-//     //     let D_6 = reading.y * reading.z * 2.0;
-//     //     let D_7 = reading.x * 2.0;
-//     //     let D_8 = reading.y * 2.0;
-//     //     let D_9 = reading.z * 2.0;
-//     //     accelerometer_D.push(D_1);
-//     //     accelerometer_D.push(D_2);
-//     //     accelerometer_D.push(D_3);
-//     //     accelerometer_D.push(D_4);
-//     //     accelerometer_D.push(D_5);
-//     //     accelerometer_D.push(D_6);
-//     //     accelerometer_D.push(D_7);
-//     //     accelerometer_D.push(D_8);
-//     //     accelerometer_D.push(D_9);
-//     // }
-//     //
-//     // for reading in magnetometer_readings {
-//     //     println!("{},{},{}", reading.x, reading.y, reading.z);
-//     //     let D_1 = reading.x * reading.x;
-//     //     let D_2 = reading.y * reading.y;
-//     //     let D_3 = reading.z * reading.z;
-//     //     let D_4 = reading.x * reading.y * 2.0;
-//     //     let D_5 = reading.x * reading.z * 2.0;
-//     //     let D_6 = reading.y * reading.z * 2.0;
-//     //     let D_7 = reading.x * 2.0;
-//     //     let D_8 = reading.y * 2.0;
-//     //     let D_9 = reading.z * 2.0;
-//     //     magnetometer_D.push(D_1);
-//     //     magnetometer_D.push(D_2);
-//     //     magnetometer_D.push(D_3);
-//     //     magnetometer_D.push(D_4);
-//     //     magnetometer_D.push(D_5);
-//     //     magnetometer_D.push(D_6);
-//     //     magnetometer_D.push(D_7);
-//     //     magnetometer_D.push(D_8);
-//     //     magnetometer_D.push(D_9);
-//     // }
-//     // return;
-//     //
-//     //
-//     // // Compute 9 unknowns 'v'
-//     // let ones: DMatrix<f32> = DMatrix::from_element(reading_len, 1, 1.0);
-//     // let D_mag: DMatrix<f32> = DMatrix::from_iterator(reading_len, 9, magnetometer_D.iter().cloned());
-//     // let D_mag_transpose = D_mag.transpose();
-//     //
-//     // let v = (D_mag_transpose.clone() * D_mag).try_inverse().unwrap() * (D_mag_transpose * ones);
-//     //
-//     // // Compute auxiliary matricies
-//     // let a = v.data[0];
-//     // let b = v.data[1];
-//     // let c = v.data[2];
-//     // let d = v.data[3];
-//     // let e = v.data[4];
-//     // let f = v.data[5];
-//     // let g = v.data[6];
-//     // let h = v.data[7];
-//     // let i = v.data[8];
-//     //
-//     // let v_ghi = DMatrix::from_row_slice(3, 1, &[g, h, i]);
-//     // let A_4 = DMatrix::from_column_slice(4, 4, &[a, d, e, g, d, b, f, h, e, f, c, i, g, h, i, -1.0]);
-//     // let A_3 = DMatrix::from_column_slice(3, 3, &[a, d, e, d, b, f, e, f, c]);
-//     // let o = -1.0 * A_3.try_inverse().unwrap() * v_ghi;
-//     //
-//     // let T = DMatrix::from_column_slice(4, 4, &[1.0, 0.0, 0.0, 0.0,
-//     //                                            0.0, 1.0, 0.0, 0.0,
-//     //                                            0.0, 0.0, 1.0, 0.0,
-//     //                                            o.data[0], o.data[1], o.data[2], 1.0]);
-//     //
-//     // let B_4 = T.clone() * A_4 * T.transpose();
-//     // let B_3 = B_4.slice((0, 0), (3, 3)) / B_4.data[15];
-//     //
-//     // let qr = QR::new(B_3);
-//     //
-//     //
-//     // // let D: Matrix<f32, na::U1000, na::U9, na::MatrixArray<f32, na::U1000, na::U9>> = Matrix::new();
-//     //
-//     // acceleration_calibration = acceleration_calibration / 200.0;
-//     // acceleration_calibration.z -= 1.0;
-//     //
-//     // println!("Accelerometer calibration values: {:?}", acceleration_calibration);
-//     // println!("Gyroscope calibration values: {:?}", gyroscope_calibration);
-
-//     // let calibs = SensorCalibrations {
-//     //     gyro_x: gyroscope_calibration.x,
-//     //     gyro_y: gyroscope_calibration.y,
-//     //     gyro_z: gyroscope_calibration.z,
-//     //     accel_x: acceleration_calibration.x,
-//     //     accel_y: acceleration_calibration.y,
-//     //     accel_z: acceleration_calibration.z
-//     // };
-//     //
-//     // calibs.write_calibration();
-// }
 
 // fn get_l3gd20(frequency: u32) -> L3GD20<LinuxI2CDevice> {
 //     let mut gyro_settings = L3GD20GyroscopeSettings {
