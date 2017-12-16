@@ -37,14 +37,16 @@ use logger::ModuleLogger;
 use configurations::Calibrations;
 
 mod hardware;
-use hardware::initialize_hardware;
+mod flight;
+
+use hardware::{initialize_hardware, MotorCommand};
+use flight::start_flight_controller;
 
 pub type PredictionReading = hardware::PredictionReading;
 pub type UpdateReading = hardware::UpdateReading;
 
-use hardware::MotorCommand;
 
-// mod flight;
+
 // mod networking;
 
 pub enum Control {
@@ -78,26 +80,14 @@ fn start_flight() {
 
     let (hardware_join_handle, pred_rx, update_rx, motor_tx, hardware_control_tx) =
         initialize_hardware();
+    start_flight_controller(pred_rx, update_rx, motor_tx);
 
-    let calibs = Calibrations::new().unwrap();
-    let mag = calibs.magnetometer.unwrap();
-    let offsets: Vector3<f32> = mag.get_offsets();
-    let rotation: Matrix3<f32> = mag.get_rotation();
-    let gains: Vector3<f32> = mag.get_gains();
-
-    for i in 0..10000 {
-        let pred = pred_rx.recv().unwrap();
-        let update = update_rx.recv().unwrap();
-
-        motor_tx.send(MotorCommand::SetPower(0.0, 0.0, 0.0, 0.0));
-    }
 
     logger.log("Press enter to terminate.");
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap();
 
     hardware_control_tx.send(()).unwrap();
-    motor_tx.send(MotorCommand::PowerDown);
 
     hardware_join_handle.join().unwrap();
 }
