@@ -164,7 +164,12 @@ impl IMU {
 
     fn read_gyroscope_raw(&mut self) -> Result<Vector3<f32>, ()> {
         match self.gyroscope.borrow_mut().angular_rate_reading() {
-            Ok(angular_rate) => Ok(Vector3::new(angular_rate.x, angular_rate.y, angular_rate.z)),
+            Ok(angular_rate) => Ok(Vector3::new(
+                // Right hand rule. LSM9DS0 is opposite for roll and yaw...
+                -angular_rate.x.to_radians(),
+                angular_rate.y.to_radians(),
+                -angular_rate.z.to_radians(),
+            )),
             Err(_) => {
                 self.logger.error("Couldn't read gyroscope.");
                 return Err(());
@@ -192,16 +197,9 @@ impl IMU {
         }
     }
 
-    pub fn read_gyroscope(&mut self) -> Result<UnitQuaternion<f32>, ()> {
+    pub fn read_gyroscope(&mut self) -> Result<Vector3<f32>, ()> {
         match self.read_gyroscope_raw() {
-            Ok(angular_rate_raw) => {
-                let angular_rate_euler = angular_rate_raw - self.gyroscope_offsets;
-                Ok(UnitQuaternion::from_euler_angles(
-                    angular_rate_euler.x,
-                    angular_rate_euler.y,
-                    angular_rate_euler.z,
-                ))
-            }
+            Ok(angular_rate_raw) => Ok(angular_rate_raw - self.gyroscope_offsets),
             Err(_) => Err(()),
         }
     }
@@ -275,34 +273,17 @@ impl IMU {
         let v = (D.transpose() * D).try_inverse().unwrap() * (&D.transpose() * ones);
 
         // Auxillary matrices
-        let A_4: Matrix4<f32> = Matrix4::new(
-            v.data[0],
-            v.data[3],
-            v.data[4],
-            v.data[6],
-            v.data[3],
-            v.data[1],
-            v.data[5],
-            v.data[7],
-            v.data[4],
-            v.data[5],
-            v.data[2],
-            v.data[8],
-            v.data[6],
-            v.data[7],
-            v.data[8],
-            -1.0,
+        #[rustfmt_skip]
+        let A_4: Matrix4<f32> = Matrix4::new(v.data[0], v.data[3], v.data[4], v.data[6], 
+                                             v.data[3], v.data[1], v.data[5], v.data[7], 
+                                             v.data[4], v.data[5], v.data[2], v.data[8], 
+                                             v.data[6], v.data[7], v.data[8], -1.0,
         );
-        let A_3: Matrix3<f32> = Matrix3::new(
-            v.data[0],
-            v.data[3],
-            v.data[4],
-            v.data[3],
-            v.data[1],
-            v.data[5],
-            v.data[4],
-            v.data[5],
-            v.data[2],
+
+        #[rustfmt_skip]
+        let A_3: Matrix3<f32> = Matrix3::new(v.data[0],v.data[3],v.data[4],
+                                             v.data[3],v.data[1],v.data[5],
+                                             v.data[4],v.data[5],v.data[2],
         );
         let v_ghi: Vector3<f32> = Vector3::new(v.data[6], v.data[7], v.data[8]);
 
@@ -329,11 +310,9 @@ impl IMU {
             1.0,
         );
         let B_4 = T * A_4 * T.transpose();
-        println!("B_4: {:?}", B_4);
 
         let b_44 = -1.0 * B_4.data[15];
         let B_3: Matrix3<f32> = B_4.fixed_resize(0.0) / b_44;
-        println!("B_3: {:?}", B_3);
 
         // Compute gains and rotation
         let eigen_decomp = B_3.symmetric_eigen();
@@ -345,6 +324,7 @@ impl IMU {
     }
 
     fn calibrate_gyroscope(&mut self, calibs: &mut Calibrations) {
+        println!("Now calibrating the gyroscope.");
         println!("Place the drone on a level surface.");
         println!("Press enter to begin...");
         let mut input = String::new();
@@ -369,6 +349,7 @@ impl IMU {
     }
 
     fn calibrate_accelerometer(&mut self, calibs: &mut Calibrations) {
+        println!("Now calibrating accelerometer.");
         println!("Place the drone on a level surface.");
         println!("Press enter to begin...");
         let mut input = String::new();

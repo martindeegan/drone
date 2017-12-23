@@ -25,10 +25,11 @@ mod mock;
 use self::barometer::BarometerThermometer;
 use self::imu::IMU;
 use self::motors::{MotorManager, SerialMotorManager};
-use self::gps::{get_gps, GPSData};
+use self::gps::get_gps;
 use self::battery::{BatteryMonitor, BatteryStatus};
 
 pub use self::motors::MotorCommand;
+pub use self::gps::GPSData;
 
 const MILLISECONDS_PER_SECOND: i64 = 1000;
 const LOOP_FREQUENCY: i64 = 95; // 95 Hz Loop
@@ -111,6 +112,7 @@ pub fn initialize_hardware() -> (
         })
         .unwrap();
 
+    sleep(Duration::seconds(3).to_std().unwrap());
     (hardware_handle, pred_rx, update_rx, motor_tx, control_tx)
 }
 
@@ -146,7 +148,7 @@ pub fn calibrate_motors() {
 
 #[derive(Debug)]
 pub struct PredictionReading {
-    pub angular_rate: UnitQuaternion<f32>,
+    pub angular_rate: Vector3<f32>,
     pub acceleration: Vector3<f32>,
     pub gps_information: Option<GPSData>,
 }

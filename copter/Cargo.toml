@@ -24,6 +24,7 @@ logger = { path = "./logger" }
 nalgebra = "0.13.1"
 typenum = "1.9.0"
 num = "0.1"
+alga = "0.5.2"
 
 [[bin]]
 name = "drone"

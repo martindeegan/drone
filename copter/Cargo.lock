@@ -217,6 +217,7 @@ name = "drone"
 version = "0.1.0"
 dependencies = [
  "ads111x 0.1.0",
+ "alga 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "configurations 0.1.0",
  "debug_server 0.1.0",
  "i2cdev 0.3.1",

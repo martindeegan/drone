@@ -1,3 +1,5 @@
+#![feature(custom_attribute)]
+#![feature(const_fn)]
 // Common Imports
 extern crate configurations;
 extern crate debug_server;
@@ -19,6 +21,7 @@ extern crate wifilocation;
 // extern crate rust_pigpio;
 
 // Math Imports
+extern crate alga;
 extern crate nalgebra as na;
 extern crate num;
 extern crate typenum;
