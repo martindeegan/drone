@@ -5,9 +5,11 @@
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::thread;
 use std::thread::{sleep, Builder, JoinHandle};
+use std::default::Default;
 
 use na::Vector3;
 use na::geometry::UnitQuaternion;
+use num::traits::Zero;
 
 use time::{Duration, PreciseTime};
 use i2csensors::{Accelerometer, Barometer, Gyroscope, Magnetometer};
@@ -32,7 +34,7 @@ pub use self::motors::MotorCommand;
 pub use self::gps::GPSData;
 
 const MILLISECONDS_PER_SECOND: i64 = 1000;
-const LOOP_FREQUENCY: i64 = 95; // 95 Hz Loop
+const LOOP_FREQUENCY: i64 = 75; // 95 Hz Loop
 
 pub fn initialize_hardware() -> (
     JoinHandle<()>,
@@ -153,12 +155,33 @@ pub struct PredictionReading {
     pub gps_information: Option<GPSData>,
 }
 
+impl Default for PredictionReading {
+    fn default() -> PredictionReading {
+        PredictionReading {
+            angular_rate: Vector3::zero(),
+            acceleration: Vector3::zero(),
+            gps_information: None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct UpdateReading {
     pub acceleration: Vector3<f32>,
     pub magnetic_reading: Option<Vector3<f32>>,
     pub pressure: f32,
     pub gps_information: Option<GPSData>,
+}
+
+impl Default for UpdateReading {
+    fn default() -> UpdateReading {
+        UpdateReading {
+            acceleration: Vector3::zero(),
+            magnetic_reading: None,
+            pressure: 0.0,
+            gps_information: None,
+        }
+    }
 }
 
 fn hardware_loop(
@@ -178,8 +201,6 @@ fn hardware_loop(
         loop_count += 1;
 
         let start_time = PreciseTime::now();
-
-        // Read sensors
 
         let angular_rate = imu.read_gyroscope().unwrap();
         let acceleration = imu.read_accelerometer().unwrap();

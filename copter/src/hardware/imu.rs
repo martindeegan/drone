@@ -22,6 +22,8 @@ type Vector200 = VectorN<f32, U200>;
 use configurations::{Calibrations, Config, Ellipsoid, Simple};
 use logger::ModuleLogger;
 
+const G_TO_MPSPS: f32 = 9.80665;
+
 use super::mock::MockSensor;
 
 pub struct IMU {
@@ -179,7 +181,9 @@ impl IMU {
 
     fn read_accelerometer_raw(&mut self) -> Result<Vector3<f32>, ()> {
         match self.accelerometer.borrow_mut().acceleration_reading() {
-            Ok(acceleration) => Ok(Vector3::new(acceleration.x, acceleration.y, acceleration.z)),
+            Ok(acceleration) => {
+                Ok(Vector3::new(acceleration.x, -acceleration.y, acceleration.z) * G_TO_MPSPS)
+            }
             Err(_) => {
                 self.logger.error("Couldn't read accelerometer.");
                 return Err(());
@@ -222,7 +226,7 @@ impl IMU {
 
     pub fn calibrate_sensors(&mut self) {
         let mut calibrations = Calibrations::new().unwrap();
-        self.calibrate_magnetometer(&mut calibrations);
+        // self.calibrate_magnetometer(&mut calibrations);
         self.calibrate_gyroscope(&mut calibrations);
         self.calibrate_accelerometer(&mut calibrations);
 
@@ -291,24 +295,11 @@ impl IMU {
         let offsets = -1.0 * A_3.try_inverse().unwrap() * v_ghi;
 
         // More auxillary matrices
-        let T: Matrix4<f32> = Matrix4::new(
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            offsets.data[0],
-            offsets.data[1],
-            offsets.data[2],
-            1.0,
-        );
+        #[rustfmt_skip]
+        let T: Matrix4<f32> = Matrix4::new(1.0,0.0,0.0,0.0,
+                                           0.0,1.0,0.0,0.0,
+                                           0.0,0.0,1.0,0.0,
+                                           offsets.data[0],offsets.data[1],offsets.data[2],1.0);
         let B_4 = T * A_4 * T.transpose();
 
         let b_44 = -1.0 * B_4.data[15];
@@ -369,6 +360,7 @@ impl IMU {
         }
 
         offsets /= 201.0;
+        offsets = offsets - Vector3::new(0.0, 0.0, G_TO_MPSPS);
 
         calibs.accelerometer = Some(Ellipsoid::new(offsets, Matrix3::zero(), Vector3::zero()));
     }
