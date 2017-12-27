@@ -11,7 +11,8 @@ mod kalman;
 use self::kalman::{KalmanFilter, State};
 use hardware::{MotorCommand, PredictionReading, UpdateReading};
 
-use na::geometry::UnitQuaternion;
+use na::geometry::{Quaternion, UnitQuaternion};
+use na::Vector3;
 
 use configurations::Config;
 use logger::ModuleLogger;
@@ -72,6 +73,8 @@ fn control_loop(
         kalman_filter.predict(dt);
         kalman_filter.update(dt);
         prev_time = current_time;
+
+
 
         motor_tx.send(MotorCommand::SetPower(0.0, 0.0, 0.0, 0.0));
     }
