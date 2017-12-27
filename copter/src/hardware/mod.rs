@@ -114,7 +114,7 @@ pub fn initialize_hardware() -> (
         })
         .unwrap();
 
-    sleep(Duration::seconds(3).to_std().unwrap());
+    sleep(Duration::seconds(1).to_std().unwrap());
     (hardware_handle, pred_rx, update_rx, motor_tx, control_tx)
 }
 

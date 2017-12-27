@@ -85,11 +85,13 @@ impl BarometerThermometer {
     }
 }
 
+#[cfg(target_arch = "arm")]
 fn get_bmp180() -> Option<BMP180BarometerThermometer<LinuxI2CDevice>> {
     // Left for someone who owns a bmp180
     None
 }
 
+#[cfg(target_arch = "arm")]
 fn get_bmp280() -> Result<BMP280<LinuxI2CDevice>, ()> {
     let settings = BMP280Settings {
         compensation: BMP280CompensationAlgorithm::B64,

@@ -366,6 +366,7 @@ impl IMU {
     }
 }
 
+#[cfg(target_arch = "arm")]
 fn get_lsm9ds0() -> Result<LSM9DS0<LinuxI2CDevice>, ()> {
     let gyro_settings = LSM9DS0GyroscopeSettings {
         DR: LSM9DS0GyroscopeDataRate::Hz95,

@@ -2,12 +2,10 @@ use std::sync::mpsc::Receiver;
 use std::default::Default;
 
 use na::geometry::{Quaternion, UnitQuaternion};
-use na::{Matrix4, MatrixN, Unit, Vector3, Vector4, VectorN};
+use na::{Matrix4, MatrixN, Unit, Vector3, Vector4, VectorN, Matrix3};
 use alga::linear::{ProjectiveTransformation, Transformation};
-use na::U10;
+use na::{U4,U6,U9, U10};
 use num::traits::Zero;
-
-type StateVector = VectorN<f32, U10>;
 
 use hardware::{PredictionReading, UpdateReading};
 use hardware::GPSData;
@@ -16,18 +14,23 @@ use logger::ModuleLogger;
 
 const G_TO_MPSPS: f32 = 9.80665;
 
+type StateVector = VectorN<f32, U4>;
+type ErrorStateVector = VectorN<f32, U4>;
+type ErrorStateJacobian = MatrixN<f32, U4>;
+type CovarianceMatrix = MatrixN<f32, U4>;
+
 // Keep track of Location: (lat, lon, altitude), Velocity: (track, climb), Attitude(w, i, j, k)
 pub struct State {
-    position: Vector3<f32>,
-    velocity: Vector3<f32>,
-    attitude: UnitQuaternion<f32>,
+    // pub position: Vector3<f32>,
+    // pub velocity: Vector3<f32>,
+    pub attitude: UnitQuaternion<f32>,
 }
 
 impl Default for State {
     fn default() -> State {
         State {
-            position: Vector3::zero(),
-            velocity: Vector3::zero(),
+            // position: Vector3::zero(),
+            // velocity: Vector3::zero(),
             attitude: UnitQuaternion::identity(),
         }
     }
@@ -36,7 +39,9 @@ impl Default for State {
 pub struct KalmanFilter {
     prediction_rx: Receiver<PredictionReading>,
     update_rx: Receiver<UpdateReading>,
-    previous_state: State,
+    state: StateVector,
+    covariance: CovarianceMatrix,
+    error_state: ErrorStateVector,
     previous_control: PredictionReading,
     previous_update: UpdateReading,
     // current_state: StateVector,
@@ -53,17 +58,12 @@ impl KalmanFilter {
         KalmanFilter {
             prediction_rx: pred_rx,
             update_rx: update_rx,
-            previous_state: State::default(),
+            state: StateVector::new(1.0, 0.0, 0.0, 0.0),
+            covariance: CovarianceMatrix::zero(),
+            error_state: ErrorStateVector::zero(),
+            covariance: 
             previous_control: PredictionReading::default(),
             previous_update: UpdateReading::default(),
-            // current_state: StateVector::zero(),
-            // previous_state: StateVector::zero(),
-            // previous_prediction: PredictionReading {
-            //     angular_rate: Vector3::zero(),
-            //     acceleration: Vector3::zero(),
-            //     gps_information: None,
-            // },
-            // logger: ModuleLogger::new("Kalman", None),
         }
     }
 
@@ -88,28 +88,34 @@ impl KalmanFilter {
         let attitude_p =
             UnitQuaternion::from_quaternion(prev_attitude.quaternion() + first_term + second_term);
 
-        //--------- Predict acceleration -------------//
-        let prev_position = self.previous_state.position;
-        let prev_velocity = self.previous_state.velocity;
-        let prev_acceleration = self.previous_control.acceleration;
+        let jacobian: ErrorStateJacobian = 
 
-        let acceleration_avg = (prev_acceleration + control.acceleration) / 2.0;
-        let gravity = Vector3::new(0.0, 0.0, G_TO_MPSPS);
-        let global_acceleration = attitude_p.transform_vector(&acceleration_avg) - gravity;
+        let gyroscope_variance = 0.0;
+        let Q = Matrix4::identity() * gyroscope_variance; 
 
-        // Predict velocity
-        let velocity_p = prev_velocity + global_acceleration * dt;
+        // //--------- Predict acceleration -------------//
+        // let prev_position = self.previous_state.position;
+        // let prev_velocity = self.previous_state.velocity;
+        // let prev_acceleration = self.previous_control.acceleration;
 
-        // Predict position
-        let position_p = prev_position + velocity_p * dt + 0.5 * global_acceleration * dt * dt;
+        // let acceleration_avg = (prev_acceleration + control.acceleration) / 2.0;
+        // let gravity = Vector3::new(0.0, 0.0, G_TO_MPSPS);
+        // let global_acceleration = attitude_p.transform_vector(&acceleration_avg) - gravity;
+
+        // // Predict velocity
+        // let velocity_p = prev_velocity + global_acceleration * dt;
+
+        // // Predict position
+        // let position_p = prev_position + velocity_p * dt + 0.5 * global_acceleration * dt * dt;
 
 
         let state = State {
-            position: position_p,
-            velocity: velocity_p,
+            // position: position_p,
+            // velocity: velocity_p,
             attitude: attitude_p,
         };
 
+{
         // println!(
         //     "acceleration: x:{:+.2},y:{:+.2},z:{:+.2}",
         //     global_acceleration.data[0], global_acceleration.data[1], global_acceleration.data[2],
@@ -122,35 +128,63 @@ impl KalmanFilter {
         //     "velocity: x:{:+.2},y:{:+.2},z:{:+.2}",
         //     state.velocity.data[0], state.velocity.data[1], state.velocity.data[2],
         // );
+}
+
+        self.predict_error_state(dt);
 
         self.previous_state = state;
         self.previous_control = control;
     }
 
+    fn predict_error_state(&mut self, dt: f32) {
+        let I_3: Matrix3<f32> = Matrix3::identity();
+        let I_4: Matrix4<f32> = Matrix4::identity();
+        let F_x = ErrorStateJacobian::from_element(0.0);
+    }
+
     pub fn update(&mut self, dt: f32) {
         let update = self.update_rx.recv().unwrap();
 
-        // Compute attitude from accelerometer
+        // Compute absolute attitude from accelerometer
         let acceleration = update.acceleration;
         let gravity = Vector3::new(0.0, 0.0, G_TO_MPSPS);
 
-        let x = Vector3::new(1.0, 0.0, 0.0);
-        let absolute_attitude = UnitQuaternion::new_observer_frame(&gravity, &acceleration);
-        let transform = absolute_attitude.inverse_transform_vector(&x);
-        println!(
-            "orientation: x:{:+.2},y:{:+.2},z:{:+.2}",
-            transform.data[0], transform.data[1], transform.data[2],
-        );
+        let attitude_a = KalmanFilter::get_absolue_attitude(acceleration, gravity);
 
-        // Compute heading from magnetometer
-        if update.magnetic_reading.is_some() {
-            let magnetic_reading = update.magnetic_reading.unwrap();
+        // Compute absolute attitude from magnetometer
+        // if update.magnetic_reading.is_some() {
+        //     let magnetic_reading = update.magnetic_reading.unwrap();
+        //     // Ann Arbor magnetic field
+        //     let magnetic_field = Vector3::new(18924.2, -2318.0, 50104.5).normalize();
+
+        //     let attitude_m = KalmanFilter::get_absolue_attitude(magnetic_reading, magnetic_field);
+        // }
+
+        // // Compute absolute position and velocity
+        // if update.gps_information.is_some() {
+        //     // GPS Shit
+        // }
+
+        self.previous_update = update;
+    }
+
+    pub fn update_motors(&mut self, m1: f32, m2: f32, m3: f32, m4: f32) {}
+
+    fn get_absolue_attitude(reading: Vector3<f32>, field: Vector3<f32>) -> UnitQuaternion<f32> {
+        let theta = field.angle(&reading);
+        if theta != 0.0 {
+            let u = field.cross(&reading);
+            UnitQuaternion::from_axis_angle(&Unit::new_normalize(u), theta)
+        } else {
+            UnitQuaternion::identity()
         }
     }
 
     // pub fn get_state(&self) -> State {
-    // State::from_state_vector(&self.current_state)
+    //     State {
+    //         position: Vector3::new(self.state.data[0], self.state.data[1], self.state.data[2]),
+    //         velocity: Vector3::new(self.state.data[3], self.state.data[4], self.state.data[5]),
+    //         attitude: UnitQuaternion::from_quaternion(Quaternion::from_vector(Vector4::new(self.state.data[6], self.state.data[7], self.state.data[8], self.state.data[9])));
+    //     }
     // }
-
-    pub fn update_motors(&mut self, m1: f32, m2: f32, m3: f32, m4: f32) {}
 }

@@ -36,9 +36,9 @@ impl Accelerometer for MockSensor {
 
     fn acceleration_reading(&mut self) -> Result<Vec3, Self::Error> {
         Ok(Vec3 {
-            x: 1.0,
+            x: 0.6,
             y: 0.0,
-            z: 0.0,
+            z: 0.8,
         })
     }
 }
