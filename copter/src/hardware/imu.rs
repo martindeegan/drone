@@ -226,7 +226,7 @@ impl IMU {
 
     pub fn calibrate_sensors(&mut self) {
         let mut calibrations = Calibrations::new().unwrap();
-        // self.calibrate_magnetometer(&mut calibrations);
+        self.calibrate_magnetometer(&mut calibrations);
         self.calibrate_gyroscope(&mut calibrations);
         self.calibrate_accelerometer(&mut calibrations);
 

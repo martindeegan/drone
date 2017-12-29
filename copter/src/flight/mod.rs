@@ -25,6 +25,8 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::Duration as _Duration;
 use std::string::String;
 use std::fmt;
+use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
+use std::io::prelude::*;
 
 const MICROSECONDS_PER_SECOND: f32 = 1000000.0;
 
@@ -63,9 +65,18 @@ fn control_loop(
     mode_rx: Receiver<FlightMode>,
 ) {
     let logger = ModuleLogger::new("Flight", None);
+    let config = Config::new().unwrap();
+    let addr = format!(
+        "{}:{}",
+        config.networking.server_ip, config.networking.server_port
+    );
+    let local = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0);
+    let mut client = UdpSocket::bind(local).unwrap();
+
     logger.log("Control loop started.");
     let mut prev_time = PreciseTime::now();
     sleep(Duration::milliseconds(10).to_std().unwrap());
+    let mut count = 0;
     'control: loop {
         let current_time = PreciseTime::now();
         let diff = prev_time.to(current_time);
@@ -74,9 +85,17 @@ fn control_loop(
         kalman_filter.update(dt);
         prev_time = current_time;
 
-
-
         motor_tx.send(MotorCommand::SetPower(0.0, 0.0, 0.0, 0.0));
+
+        let att_vec = kalman_filter.state.attitude.coords;
+        if count % 3 == 0 {
+            let msg: String = format!(
+                "{{ \"position\": [{}, {}, {}], \"attitude\": [{}, {}, {}, {}] }}",
+                0.0, 0.0, 0.0, att_vec.data[0], att_vec.data[1], att_vec.data[2], att_vec.data[3]
+            );
+            client.send_to(msg.as_bytes(), &addr).unwrap();
+        }
+        count += 1;
     }
 }
 // pub fn start_flight() -> (Sender<FlightMode>, thread::JoinHandle<()>) {

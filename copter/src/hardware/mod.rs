@@ -84,6 +84,7 @@ pub fn initialize_hardware() -> (
             };
             hardware_logger.success("Motors initialized.");
 
+
             let mut gps_rx = get_gps();
             hardware_logger.success("GPS started.");
 

@@ -105,13 +105,13 @@ pub fn get_gps() -> Receiver<GPSData> {
     });
 
     /*--------- Check that GPS is tracking -----------*/
-    match gps_rx.recv_timeout(Duration::from_secs(60)) {
-        Ok(_) => logger.log("GPS check."),
-        Err(err) => {
-            logger.error("GPS failed to respond in time. Check that GPSD is running. Check that your GPS is running correctly. Check GPS fix.");
-            panic!("{:?}", err);
-        }
-    }
+    // match gps_rx.recv_timeout(Duration::from_secs(60)) {
+    //     Ok(_) => logger.log("GPS check."),
+    //     Err(err) => {
+    //         logger.error("GPS failed to respond in time. Check that GPSD is running. Check that your GPS is running correctly. Check GPS fix.");
+    //         panic!("{:?}", err);
+    //     }
+    // }
 
     gps_rx
 }
