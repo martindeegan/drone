@@ -153,7 +153,6 @@ pub fn calibrate_motors() {
 pub struct PredictionReading {
     pub angular_rate: Vector3<f32>,
     pub acceleration: Vector3<f32>,
-    pub gps_information: Option<GPSData>,
 }
 
 impl Default for PredictionReading {
@@ -161,7 +160,6 @@ impl Default for PredictionReading {
         PredictionReading {
             angular_rate: Vector3::zero(),
             acceleration: Vector3::zero(),
-            gps_information: None,
         }
     }
 }
@@ -206,15 +204,9 @@ fn hardware_loop(
         let angular_rate = imu.read_gyroscope().unwrap();
         let acceleration = imu.read_accelerometer().unwrap();
 
-        let gps_information: Option<GPSData> = match gps_rx.try_recv() {
-            Ok(gps_data) => Some(gps_data),
-            Err(_) => None,
-        };
-
         let prediction_reading = PredictionReading {
             angular_rate: angular_rate,
             acceleration: acceleration,
-            gps_information: gps_information,
         };
 
         match prediction_tx.send(prediction_reading) {
@@ -223,6 +215,11 @@ fn hardware_loop(
                 hardware_logger.error("Failed to send predictive readings.");
             }
         }
+
+        let gps_information: Option<GPSData> = match gps_rx.try_recv() {
+            Ok(gps_data) => Some(gps_data),
+            Err(_) => None,
+        };
 
         let pressure = barometer.read_pressure();
         let mut magnetic_reading: Option<Vector3<f32>> = None;

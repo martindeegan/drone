@@ -1,10 +1,13 @@
 use std::sync::mpsc::Receiver;
 use std::default::Default;
+use std::f32;
 
 use na::geometry::{Quaternion, UnitQuaternion};
-use na::{Matrix3, Matrix4, MatrixMN, MatrixN, Unit, Vector3, Vector4, VectorN};
+use na::{Matrix, Matrix3, Matrix3x4, Matrix4, Matrix4x3, MatrixMN, MatrixN, SliceStorage, Unit,
+         Vector3, Vector4, VectorN};
 use alga::linear::{ProjectiveTransformation, Transformation};
-use na::{U10, U3, U4, U6, U9};
+use na::Id;
+use na::{U10, U12, U18, U19, U3, U4, U6, U9};
 use num::traits::Zero;
 
 use hardware::{PredictionReading, UpdateReading};
@@ -14,24 +17,30 @@ use logger::ModuleLogger;
 
 const G_TO_MPSPS: f32 = 9.80665;
 
-type StateVector = VectorN<f32, U4>;
-type ErrorStateVector = VectorN<f32, U3>;
-type ErrorStateJacobian = MatrixN<f32, U3>;
-type CovarianceMatrix = MatrixN<f32, U3>;
+type TransitionJacobian = MatrixN<f32, U18>;
+type CovarianceMatrix = MatrixN<f32, U18>;
+type StateJacobian = MatrixMN<f32, U19, U18>;
 
-// Keep track of Location: (lat, lon, altitude), Velocity: (track, climb), Attitude(w, i, j, k)
+// Keep track of Location: (lat, lon, altitude), Velocity: (track, climb), Attitude(w, i, j, k), gyro bias, accel bias, magnetic field
+#[derive(Debug)]
 pub struct State {
-    // pub position: Vector3<f32>,
-    // pub velocity: Vector3<f32>,
+    pub position: Vector3<f32>,
+    pub velocity: Vector3<f32>,
     pub attitude: UnitQuaternion<f32>,
+    pub gyro_bias: Vector3<f32>,
+    pub acc_bias: Vector3<f32>,
+    pub magnetic_field: Vector3<f32>,
 }
 
 impl Default for State {
     fn default() -> State {
         State {
-            // position: Vector3::zero(),
-            // velocity: Vector3::zero(),
+            position: Vector3::zero(),
+            velocity: Vector3::zero(),
             attitude: UnitQuaternion::identity(),
+            gyro_bias: Vector3::zero(),
+            acc_bias: Vector3::zero(),
+            magnetic_field: Vector3::new(18924.2, -2318.0, 50104.5).normalize(),
         }
     }
 }
@@ -39,15 +48,14 @@ impl Default for State {
 pub struct KalmanFilter {
     prediction_rx: Receiver<PredictionReading>,
     update_rx: Receiver<UpdateReading>,
-    pub state: State,
-    covariance: CovarianceMatrix,
-    error_state: ErrorStateVector,
-    previous_control: PredictionReading,
-    previous_update: UpdateReading,
-    // current_state: StateVector,
-    // previous_state: StateVector,
-    // previous_prediction: PredictionReading,
-    // logger: ModuleLogger,
+    pub x: State,
+    P: CovarianceMatrix,
+    u_p: PredictionReading,
+    state_jacobian: StateJacobian,
+    F: TransitionJacobian,
+    Q: CovarianceMatrix,
+    H_field: MatrixMN<f32, U3, U19>,
+    thrust: f32,
 }
 
 impl KalmanFilter {
@@ -55,15 +63,74 @@ impl KalmanFilter {
         pred_rx: Receiver<PredictionReading>,
         update_rx: Receiver<UpdateReading>,
     ) -> KalmanFilter {
+        let mut X_dx = StateJacobian::zero();
+        {
+            let mut top_left = X_dx.fixed_slice_mut::<U6, U6>(0, 0);
+            top_left.fill_with_identity();
+        }
+        {
+            let mut bottom_right = X_dx.fixed_slice_mut::<U9, U9>(8, 9);
+            bottom_right.fill_with_identity();
+        }
+
+        let mut F_i: MatrixMN<f32, U18, U12> = MatrixMN::zero();
+        F_i.fixed_slice_mut::<U12, U12>(3, 0).fill_with_identity();
+
+        let acc_noise = (0.5 as f32);
+        let gyro_noise = (0.1 as f32).to_radians();
+        let acc_bias_walk = (0.0 as f32);
+        let gyro_bias_walk = (0.0 as f32);
+        let mut Q_i: MatrixN<f32, U12> = MatrixN::zero();
+        {
+            let mut acc_noise_mat = Q_i.fixed_slice_mut::<U3, U3>(0, 0);
+            acc_noise_mat.fill_with_identity();
+            acc_noise_mat *= acc_noise;
+        }
+        {
+            let mut gyro_noise_mat = Q_i.fixed_slice_mut::<U3, U3>(3, 3);
+            gyro_noise_mat.fill_with_identity();
+            gyro_noise_mat *= gyro_noise;
+        }
+        {
+            let mut acc_bias_walk_mat = Q_i.fixed_slice_mut::<U3, U3>(6, 6);
+            acc_bias_walk_mat.fill_with_identity();
+            acc_bias_walk_mat *= acc_bias_walk;
+        }
+        {
+            let mut gyro_bias_walk_mat = Q_i.fixed_slice_mut::<U3, U3>(9, 9);
+            gyro_bias_walk_mat.fill_with_identity();
+            gyro_bias_walk_mat *= gyro_bias_walk;
+        }
+
+        // println!("Q: {:?}", F_i * Q_i * F_i.transpose());
+
+        let F = TransitionJacobian::identity();
         KalmanFilter {
             prediction_rx: pred_rx,
             update_rx: update_rx,
-            state: State::default(),
-            covariance: CovarianceMatrix::zero(),
-            error_state: ErrorStateVector::zero(),
-            previous_control: PredictionReading::default(),
-            previous_update: UpdateReading::default(),
+            x: State::default(),
+            P: CovarianceMatrix::zero(),
+            u_p: PredictionReading::default(),
+            state_jacobian: X_dx,
+            F: F,
+            Q: F_i * Q_i * F_i.transpose(),
+            H_field: MatrixMN::zero(),
+            thrust: 0.0,
         }
+    }
+
+    fn update_state_jacobian(&mut self) {
+        let q: &Vector4<f32> = &self.x.attitude.coords;
+
+        let mut q_jacob = self.state_jacobian.fixed_slice_mut::<U4, U3>(6, 6);
+
+        #[rustfmt_skip]
+        let update = (0.5) * Matrix4x3::new(q.data[3], -q.data[2], q.data[1],
+                                            q.data[2], q.data[3], -q.data[0],
+                                            -q.data[1], q.data[0], q.data[3],
+                                            -q.data[0], -q.data[1], -q.data[2]);
+
+        q_jacob.copy_from(&update);
     }
 
     fn omega_matrix(w: &Vector3<f32>) -> Matrix4<f32> {
@@ -87,168 +154,209 @@ impl KalmanFilter {
 
     pub fn predict(&mut self, dt: f32) {
         // let current_state = self.get_state();
-        let control = self.prediction_rx.recv().unwrap();
+        let mut u = self.prediction_rx.recv().unwrap();
+        u.angular_rate -= self.x.gyro_bias;
+        u.acceleration -= self.x.acc_bias;
 
         //-------- First Order Gyroscope Integrator ---------//
-        let prev_attitude = self.state.attitude;
-        let prev_angular_rate = self.previous_control.angular_rate;
-        let w = (prev_angular_rate + control.angular_rate) / 2.0;
+        let prev_attitude = self.x.attitude;
+        let prev_angular_rate = self.u_p.angular_rate;
+        let next_angular_rate = u.angular_rate;
+        let w_avg = (next_angular_rate + prev_angular_rate) / 2.0;
 
-        // let q_dot = Quaternion::from_parts(0.0, w) * prev_attitude * dt;
-
-        let omega_mean = 0.5 * dt * KalmanFilter::omega_matrix(&w);
+        let omega_mean = 0.5 * dt * KalmanFilter::omega_matrix(&w_avg);
         let omega_prev = KalmanFilter::omega_matrix(&prev_angular_rate);
-        let omega_now = KalmanFilter::omega_matrix(&control.angular_rate);
+        let omega_next = KalmanFilter::omega_matrix(&next_angular_rate);
 
-        #[rustfmt_skip]
-        let Theta = Matrix4::identity() + omega_mean + 0.5 * omega_mean * omega_mean;
-        let q_dot =
-            Theta + 1.0 / 48.0 * dt * dt * (omega_now * omega_prev - omega_prev * omega_now);
+        // 3 axis angular rate integration
+        let taylor_order: i32 = 3;
+        let mut Theta: Matrix4<f32> = Matrix4::identity();
+        let mut fac = 1.0;
+        let mut omega = omega_mean;
+        for i in 1..taylor_order {
+            Theta = Theta + (1.0 / fac) * omega;
 
-        let q_k_1 = Quaternion::from_vector(q_dot * prev_attitude.coords);
-
-        let attitude_p = UnitQuaternion::from_quaternion(q_k_1);
-
-        let skew = KalmanFilter::sqew_matrix(&w);
-        let F = Matrix3::identity() - dt * skew + dt * dt / 2.0 * skew * skew;
-        let gyroscope_variance = 0.2750;
-        // let Q = Matrix3::identity() * gyroscope_variance;
-        #[rustfmt_skip]
-        let Q = Matrix3::new(0.1463, 0.0, 0.0,
-                             0.0, 0.2880, 0.0,
-                             0.0, 0.0, 0.3908);
-        let impulses_vector = Vector3::new(0.1463, 0.2880, 0.3908);
-
-        self.covariance = F * self.covariance * F.transpose() + Q;
-
-        self.state.attitude = attitude_p;
-        self.previous_control = control;
-        self.error_state = F * self.error_state + impulses_vector;
-
-        // println!("Error state: {:?}", self.error_state);
-        // println!("Covariance:  {:?}", self.covariance);
-
-        {
-            // //--------- Predict acceleration -------------//
-            // let prev_position = self.previous_state.position;
-            // let prev_velocity = self.previous_state.velocity;
-            // let prev_acceleration = self.previous_control.acceleration;
-
-            // let acceleration_avg = (prev_acceleration + control.acceleration) / 2.0;
-            // let gravity = Vector3::new(0.0, 0.0, G_TO_MPSPS);
-            // let global_acceleration = attitude_p.transform_vector(&acceleration_avg) - gravity;
-
-            // // Predict velocity
-            // let velocity_p = prev_velocity + global_acceleration * dt;
-
-            // // Predict position
-            // let position_p = prev_position + velocity_p * dt + 0.5 * global_acceleration * dt * dt;
+            omega *= omega_mean;
+            fac *= i as f32;
         }
+        Theta += (1.0 / 48.0 * dt * dt) * (omega_next * omega_prev - omega_prev * omega_next);
+        let attitude_p =
+            UnitQuaternion::from_quaternion(Quaternion::from_vector(Theta * prev_attitude.coords));
 
-        let state = State {
-            // position: position_p,
-            // velocity: velocity_p,
+        let acceleration_avg = (u.acceleration + self.u_p.acceleration) / 2.0;
+        let gravity = Vector3::new(0.0, 0.0, G_TO_MPSPS);
+        let acceleration_w = attitude_p.transform_vector(&acceleration_avg) - gravity;
+
+        let velocity_p = self.x.velocity + acceleration_w * dt;
+        let position_p = self.x.position + self.x.velocity * dt;
+
+        let skew_w = KalmanFilter::sqew_matrix(&w_avg);
+        let skew_a = KalmanFilter::sqew_matrix(&acceleration_avg);
+        let R = self.x.attitude.to_rotation_matrix().unwrap();
+        let dtI = Matrix3::identity() * dt;
+
+        let dqddt = Matrix3::identity() - dt * skew_w + dt * dt / 2.0 * skew_w * skew_w;
+        let dqdgb = Matrix3::identity() * dt + (dt * dt / 2.0) * skew_w
+            - (dt * dt * dt / 2.0 / 3.0) * skew_w * skew_w;
+        let dpdv = dtI;
+        let dvdq = -R * skew_a * dt;
+        let dvdab = -R * dt;
+
+        self.F.fixed_slice_mut::<U3, U3>(0, 3).copy_from(&dtI);
+        self.F.fixed_slice_mut::<U3, U3>(3, 6).copy_from(&dvdq);
+        self.F.fixed_slice_mut::<U3, U3>(3, 9).copy_from(&dvdab);
+        self.F.fixed_slice_mut::<U3, U3>(6, 6).copy_from(&dqddt);
+        self.F.fixed_slice_mut::<U3, U3>(6, 12).copy_from(&dqdgb);
+        self.F.fixed_slice_mut::<U3, U3>(3, 9).copy_from(&(-dtI));
+
+        self.P = self.F * self.P * self.F.transpose() + self.Q;
+        self.u_p = u;
+
+
+        self.x = State {
+            position: position_p,
+            velocity: velocity_p,
             attitude: attitude_p,
+            gyro_bias: self.x.gyro_bias,
+            acc_bias: self.x.acc_bias,
+            magnetic_field: self.x.magnetic_field,
         };
     }
 
-    #[rustfmt_skip]
-    fn get_attitude_error(&self, reading: Vector3<f32>, field: Vector3<f32>) -> (f32, Unit<Vector3<f32>>) {
+    fn add_error_state(&mut self, error_state: VectorN<f32, U18>) {
+        let dp = Vector3::new(
+            error_state.data[0],
+            error_state.data[1],
+            error_state.data[2],
+        );
+        let dv = Vector3::new(
+            error_state.data[3],
+            error_state.data[4],
+            error_state.data[5],
+        );
+        let dt = Vector3::new(
+            error_state.data[6] * 0.5,
+            error_state.data[7] * 0.5,
+            error_state.data[8] * 0.5,
+        );
+        let dab = Vector3::new(
+            error_state.data[9],
+            error_state.data[10],
+            error_state.data[11],
+        );
+        let dgb = Vector3::new(
+            error_state.data[12],
+            error_state.data[13],
+            error_state.data[14],
+        );
+        let dm = Vector3::new(
+            error_state.data[15],
+            error_state.data[16],
+            error_state.data[17],
+        );
 
-        let reading_world = self.state.attitude.inverse_transform_vector(&reading);
-        // println!(
-        //     "reading_world: {:.02}, {:.02}, {:.02}",
-        //     reading_world.data[0], reading_world.data[1], reading_world.data[2]
-        // );
+        self.x.position += dp;
+        self.x.velocity += dv;
+        self.x.acc_bias += dab;
+        self.x.gyro_bias += dgb;
+        self.x.magnetic_field += dm;
 
-        let correction_rotation: UnitQuaternion<f32> =
-            UnitQuaternion::rotation_between(&field, &reading_world).unwrap();
-        let phi = correction_rotation.angle();
-        if phi != 0.0 {
-            let u = reading_world.cross(&field);
-            (phi, correction_rotation.axis().unwrap())
-        } else {
-            (0.0, Unit::new_normalize(Vector3::x()))
+
+        let dq = UnitQuaternion::from_quaternion(Quaternion::from_parts(1.0, dt));
+        self.x.attitude = self.x.attitude * dq;
+
+        // let mut G = CovarianceMatrix::identity();
+        // G.fixed_slice_mut::<U3, U3>(6, 6)
+        //     .copy_from(&(Matrix3::identity() - KalmanFilter::sqew_matrix(&dt)));
+
+        // self.P = G * self.P * G.transpose();
+    }
+
+    fn correct_field_reading(&mut self, field: Vector3<f32>, measurement: Vector3<f32>) {
+        let predicted_measurement = self.x.attitude.transform_vector(&field);
+        let z = measurement - predicted_measurement;
+
+        let acc_noise = (2.0 as f32);
+        let rot = self.x.attitude.to_rotation_matrix().unwrap();
+        let R = Matrix3::identity() * acc_noise;
+        let V = rot * R * rot.transpose();
+
+        self.update_state_jacobian();
+
+        let fx = field.data[0];
+        let fy = field.data[1];
+        let fz = field.data[2] - self.thrust;
+        let qx = self.x.attitude.coords.data[0];
+        let qy = self.x.attitude.coords.data[1];
+        let qz = self.x.attitude.coords.data[2];
+        let qw = self.x.attitude.coords.data[3];
+        #[rustfmt_skip]
+        let H_x: Matrix3x4<f32> =
+            Matrix3x4::new(          2.0*(fy*qy+qz*fz), 2.0*(fy*qx-2.0*fx*qy+qw*fz), 2.0*(qx*fz-2.0*fx*qz-fy*qw), 2.0*(qy*fz-fy*qz),
+                           2.0*(fx*qy-2.0*fy*qx-qw*fz),           2.0*(fx*qx+qz*fz), 2.0*(fx*qw-2.0*fy*qz+qy*fz), 2.0*(fx*qz-qx*fz),
+                           2.0*(fy*qw+fx*qz-2.0*qx*fz), 2.0*(fy*qz-fx*qw-2.0*qy*fz),           2.0*(fx*qx+fy*qy), 2.0*(fy*qx-fx*qy));
+        self.H_field.fixed_slice_mut::<U3, U4>(0, 6).copy_from(&H_x);
+        let H = self.H_field * self.state_jacobian;
+
+        let S = H * self.P * H.transpose() + V;
+        match S.try_inverse() {
+            Some(S_inv) => {
+                let K = self.P * H.transpose() * S_inv;
+                let error_state = K * z;
+                self.add_error_state(error_state);
+
+                self.P = (CovarianceMatrix::identity() - K * H) * self.P
+                    * (CovarianceMatrix::identity() - K * H).transpose()
+                    + K * V * K.transpose();
+            }
+            None => {}
         }
+        println!("P: {:?}", self.P);
     }
 
     fn update_accelerometer(&mut self, acceleration: Vector3<f32>, dt: f32) {
         let gravity = Vector3::new(0.0, 0.0, G_TO_MPSPS);
-        let (error_angle, error_axis) = self.get_attitude_error(acceleration, gravity);
-
-        println!(
-            "Error angle: {:.02}, Error axis: {:.02}, {:.02}, {:.02}",
-            error_angle, error_axis.data[0], error_axis.data[1], error_axis.data[2]
-        );
-
-        let alpha = 0.15;
-        let attitude_error: UnitQuaternion<f32> =
-            UnitQuaternion::from_axis_angle(&error_axis, error_angle * alpha);
-
-        let attitude_correction = self.state.attitude * attitude_error;
-
-        self.state.attitude = attitude_correction;
-
-        // let H: Matrix3<f32> = Matrix3::identity();
-        // let accelerometer_variance = 0.25;
-        // let R: Matrix3<f32> = Matrix3::from_element(1.0) - Matrix3::identity()
-        //     + Matrix3::identity() * accelerometer_variance;
-        // let S = H * self.covariance * H.transpose() + R;
-        // let K = (self.covariance * H.transpose()).component_div(&S);
-
-        // let correction = K * self.error_state;
-        // let attitude_correction =
-        //     UnitQuaternion::from_quaternion(Quaternion::from_parts(1.0, 0.5 * correction));
-
-        // let updated_attitude = attitude_correction * self.state.attitude;
-
-        // self.state.attitude = updated_attitude;
-
-        // // println!("covariance: {:?}", self.covariance.data);
-
-        // // self.covariance = (Matrix3::identity() - K * H) * self.covariance
-        // //     * (Matrix3::identity() - K * H).transpose()
-        // //     + K * R * K.transpose();
+        self.correct_field_reading(gravity, acceleration);
     }
 
-    fn update_magnetometer(&mut self, magnetic_reading: Vector3<f32>, dt: f32) {
-        // Ann Arbor magnetic field
-        // let magnetic_field = Vector3::new(18924.2, -2318.0, 50104.5).normalize();
+    // fn update_magnetometer(&mut self, magnetic_reading: Vector3<f32>, dt: f32) {
+    //     // Ann Arbor magnetic field
+    //     // let magnetic_field = Vector3::new(18924.2, -2318.0, 50104.5).normalize();
 
-        // let (error_angle, error_axis) = self.get_attitude_error(magnetic_reading, magnetic_field);
-        // let alpha = 0.15;
+    //     // let (error_angle, error_axis) = self.get_attitude_error(magnetic_reading, magnetic_field);
+    //     // let alpha = 0.15;
 
-        // let attitude_error: UnitQuaternion<f32> =
-        //     UnitQuaternion::from_axis_angle(&error_axis, error_angle * alpha);
+    //     // let attitude_error: UnitQuaternion<f32> =
+    //     //     UnitQuaternion::from_axis_angle(&error_axis, error_angle * alpha);
 
-        // let attitude_correction = self.state.attitude * attitude_error;
+    //     // let attitude_correction = self.state.attitude * attitude_error;
 
-        // self.state.attitude = attitude_correction;
-    }
+    //     // self.state.attitude = attitude_correction;
+    // }
 
-    fn update_gps(&mut self, dt: f32) {}
+    // fn update_gps(&mut self, dt: f32) {}
 
     pub fn update(&mut self, dt: f32) {
         let update = self.update_rx.recv().unwrap();
 
         self.update_accelerometer(update.acceleration, dt);
-        if update.magnetic_reading.is_some() {
-            self.update_magnetometer(update.magnetic_reading.unwrap(), dt);
-        }
+        // if update.magnetic_reading.is_some() {
+        //     self.update_magnetometer(update.magnetic_reading.unwrap(), dt);
+        // }
 
-        // Compute absolute position and velocity
-        if update.gps_information.is_some() {
-            self.update_gps(dt);
-        }
+        // // Compute absolute position and velocity
+        // if update.gps_information.is_some() {
+        //     self.update_gps(dt);
+        // }
     }
 
-    pub fn update_motors(&mut self, m1: f32, m2: f32, m3: f32, m4: f32) {}
+    // pub fn update_motors(&mut self, m1: f32, m2: f32, m3: f32, m4: f32) {}
 
-    // pub fn get_state(&self) -> State {
-    //     State {
-    //         position: Vector3::new(self.state.data[0], self.state.data[1], self.state.data[2]),
-    //         velocity: Vector3::new(self.state.data[3], self.state.data[4], self.state.data[5]),
-    //         attitude: UnitQuaternion::from_quaternion(Quaternion::from_vector(Vector4::new(self.state.data[6], self.state.data[7], self.state.data[8], self.state.data[9])));
-    //     }
-    // }
+    // // pub fn get_state(&self) -> State {
+    // //     State {
+    // //         position: Vector3::new(self.state.data[0], self.state.data[1], self.state.data[2]),
+    // //         velocity: Vector3::new(self.state.data[3], self.state.data[4], self.state.data[5]),
+    // //         attitude: UnitQuaternion::from_quaternion(Quaternion::from_vector(Vector4::new(self.state.data[6], self.state.data[7], self.state.data[8], self.state.data[9])));
+    // //     }
+    // // }
 }

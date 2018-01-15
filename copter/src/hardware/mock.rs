@@ -24,9 +24,9 @@ impl Gyroscope for MockSensor {
 
     fn angular_rate_reading(&mut self) -> Result<Vec3, Self::Error> {
         Ok(Vec3 {
-            x: -0.05,
-            y: 0.21,
-            z: -0.012,
+            x: -1.05,
+            y: 0.3,
+            z: -0.0,
         })
     }
 }
@@ -38,7 +38,7 @@ impl Accelerometer for MockSensor {
         Ok(Vec3 {
             x: 0.0,
             y: 0.0,
-            z: 1.00,
+            z: 1.0,
         })
     }
 }
