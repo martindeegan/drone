@@ -319,6 +319,13 @@ impl KalmanFilter {
         self.correct_field_reading(gravity, acceleration);
     }
 
+    fn update_magnetometer(&mut self, magnetic_reading: Vector3<f32>) {}
+
+    fn update_gps(&mut self, gps_measurement: GPSData) {
+        let lat = gps_measurement.latitude;
+        let lon = gps_measurement.longitude;
+    }
+
     // fn update_magnetometer(&mut self, magnetic_reading: Vector3<f32>, dt: f32) {
     //     // Ann Arbor magnetic field
     //     // let magnetic_field = Vector3::new(18924.2, -2318.0, 50104.5).normalize();

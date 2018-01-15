@@ -19,23 +19,35 @@ use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, Copy)]
 pub struct GPSData {
-    latitude: f64,
-    longitude: f64,
-    altitude: Option<f64>,
-    speed: Option<f64>,
-    climb: Option<f64>,
-    track: Option<f64>,
+    pub latitude: f64,
+    pub lat_err: Option<f64>,
+    pub longitude: f64,
+    pub lon_err: Option<f64>,
+    pub altitude: Option<f64>,
+    pub alt_err: Option<f64>,
+    pub speed: Option<f64>,
+    pub speed_err: Option<f64>,
+    pub climb: Option<f64>,
+    pub climb_err: Option<f64>,
+    pub track: Option<f64>,
+    pub track_err: Option<f64>,
 }
 
 impl GPSData {
     pub fn zeros() -> GPSData {
         GPSData {
             latitude: 0.0,
+            lat_err: None,
             longitude: 0.0,
+            lon_err: None,
             altitude: None,
+            alt_err: None,
             speed: None,
+            speed_err: None,
             climb: None,
+            climb_err: None,
             track: None,
+            track_err: None,
         }
     }
 }
@@ -155,11 +167,17 @@ fn process_tpv_response(response: TpvResponse) -> Option<GPSData> {
             climb_err,
         } => Some(GPSData {
             latitude: lat,
+            lat_err: lat_err,
             longitude: lon,
+            lon_err: lon_err,
             altitude: Some(alt),
+            alt_err: alt_err,
             speed: Some(speed),
+            speed_err: speed_err,
             climb: Some(climb),
+            climb_err: climb_err,
             track: track,
+            track_err: track_err,
         }),
         TpvResponse::Fix2D {
             device,
@@ -176,11 +194,17 @@ fn process_tpv_response(response: TpvResponse) -> Option<GPSData> {
             speed_err,
         } => Some(GPSData {
             latitude: lat,
+            lat_err: lat_err,
             longitude: lon,
+            lon_err: lon_err,
             altitude: None,
+            alt_err: None,
             speed: Some(speed),
+            speed_err: speed_err,
             climb: None,
+            climb_err: None,
             track: track,
+            track_err: track_err,
         }),
         TpvResponse::LatLonOnly {
             device,
@@ -201,11 +225,17 @@ fn process_tpv_response(response: TpvResponse) -> Option<GPSData> {
             climb_err,
         } => Some(GPSData {
             latitude: lat,
+            lat_err: lat_err,
             longitude: lon,
+            lon_err: lon_err,
             altitude: alt,
+            alt_err: alt_err,
             speed: speed,
+            speed_err: speed_err,
             climb: climb,
+            climb_err: climb_err,
             track: track,
+            track_err: track_err,
         }),
         _ => None,
     }
