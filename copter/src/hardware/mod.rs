@@ -151,8 +151,8 @@ pub fn calibrate_motors() {
 
 #[derive(Debug)]
 pub struct PredictionReading {
-    pub angular_rate: Vector3<f32>,
-    pub acceleration: Vector3<f32>,
+    pub angular_rate: Vector3<f64>,
+    pub acceleration: Vector3<f64>,
 }
 
 impl Default for PredictionReading {
@@ -166,9 +166,9 @@ impl Default for PredictionReading {
 
 #[derive(Debug)]
 pub struct UpdateReading {
-    pub acceleration: Vector3<f32>,
-    pub magnetic_reading: Option<Vector3<f32>>,
-    pub pressure: f32,
+    pub acceleration: Vector3<f64>,
+    pub magnetic_reading: Option<Vector3<f64>>,
+    pub pressure: f64,
     pub gps_information: Option<GPSData>,
 }
 
@@ -222,7 +222,7 @@ fn hardware_loop(
         };
 
         let pressure = barometer.read_pressure();
-        let mut magnetic_reading: Option<Vector3<f32>> = None;
+        let mut magnetic_reading: Option<Vector3<f64>> = None;
         if loop_count % 4 == 0 {
             magnetic_reading = Some(imu.read_magnetometer().unwrap());
         }
@@ -230,7 +230,7 @@ fn hardware_loop(
         let mut update_reading = UpdateReading {
             acceleration: acceleration,
             magnetic_reading: magnetic_reading,
-            pressure: pressure,
+            pressure: pressure as f64,
             gps_information: gps_information,
         };
 
