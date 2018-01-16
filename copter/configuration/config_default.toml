@@ -1,0 +1,71 @@
+[flight.roll]
+p = 0.0
+i = 0.0
+d = 0.0
+
+[flight.pitch]
+p = 0.0
+i = 0.0
+d = 0.0
+
+[flight.yaw]
+p = 0.0
+d = 0.0
+
+[hardware]
+gps = false
+wifi_gps = false
+
+[hardware.barometer]
+name = "Barometer Model"
+update_rate = 100
+serial = "I2C"
+slave_address = 0
+
+[hardware.gyroscope]
+name = "Gyroscope Model"
+update_rate = 100
+serial = "I2C"
+slave_address = 0
+
+[hardware.accelerometer]
+name = "Accelerometer Model"
+update_rate = 100
+serial = "I2C"
+slave_address = 0
+
+[hardware.magnetometer]
+name = "Magnetometer Model"
+update_rate = 100
+serial = "I2C"
+slave_address = 0
+
+[hardware.analog_converter]
+name = "Analog to Digital Converter"
+update_rate = 100
+serial = "I2C"
+slave_address = 0
+
+[hardware.motors]
+pins = [1, 2, 3, 4]
+serial_pwm = true
+
+[hardware.battery]
+cells = 0
+warning_voltage = 0.0
+critical_voltage = 0.0
+
+[hardware.motors.serial_controller]
+name = "PWM Controller"
+serial = "I2C"
+slave_address = 0
+
+[networking]
+server_ip = "0.0.0.0"
+server_port = 0
+
+[debug]
+live_debugging = false
+debug_websocket_port = 0
+logging = true
+motors_off = false

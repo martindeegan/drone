@@ -1,0 +1,13 @@
+[package]
+name = "visualizer"
+version = "0.1.0"
+authors = ["Martin Deegan <mddegan@gmail.com>"]
+
+[dependencies]
+kiss3d = "0.12.0"
+nalgebra = "0.13.1"
+typenum = "1.9.0"
+num = "0.1"
+alga = "0.5.2"
+json = "0.11.12"
+libusb = "0.3"

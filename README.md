@@ -7,13 +7,14 @@ This project is a pure rust implementation of a quadcopter.
 [![First Flight!](http://img.youtube.com/vi/_O6T4tCpLQM/0.jpg)](https://www.youtube.com/watch?v=_O6T4tCpLQM)
 
 ## Features
-1) PID loop for drone stabilization
-2) Peer to peer communication
+1) 19 State Kalman Filter
+2) PID loop for drone stabilization
+3) 3D graphical visualizer of quad state
 
 ## Todo
 - [x] Move sensors to [i2cdev-sensors](https://github.com/martindeegan/i2cdev-sensors). Create a sensor manager that can be changed in config.json
 - [x] Refactor project
-- [ ] Convert to an Extended Kalman Filter to track location and attitude.
+- [x] Convert to an Extended Kalman Filter to track location and attitude.
 - [ ] GPS long distance navigation.
 
 ## Teststed Hardware

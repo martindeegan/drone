@@ -4,25 +4,27 @@ version = "0.1.0"
 authors = ["Thomas Deegan <tadeegan@gmail.com>", "Martin Deegan <mddeegan@gmail.com>"]
 
 [dependencies]
-rust-pigpio = "0.2.0"
+# rust-pigpio = "0.2.0"
 time = "0.1"
 debug_server = {path = "./debug", version = "0.1.0"}
-protos = { path = "./protos" }
-config = { path = "./config" }
-protobuf = "1.2.2"
-ansi_term = "0.9.0"
+i2cdev = { path = "./local/rust-i2cdev", version = "0.3.1" }
 i2csensors = "0.1.*"
-i2cdev-bmp180 = "0.1.*"
-i2cdev-bmp280 = "0.1.*"
-i2cdev-l3gd20 = "0.1.*"
-i2cdev-lsm303d = "0.1.*"
-i2cdev-lsm9ds0 = "0.1.*"
-i2cdev = "0.3.1"
-unbounded-gpsd = { path = "./unbounded-gpsd" }
-wifilocation = { path = "./wifilocation" }
-nalgebra = "0.13"
-typenum = "1.7.0"
-reqwest = "0.7.3"
+i2cdev-bmp180 = { path = "./local/i2cdev-sensors/i2cdev-bmp180" }
+i2cdev-bmp280 = { path = "./local/i2cdev-sensors/i2cdev-bmp280" }
+i2cdev-l3gd20 = { path = "./local/i2cdev-sensors/i2cdev-l3gd20" }
+i2cdev-lsm303d = { path = "./local/i2cdev-sensors/i2cdev-lsm303d" }
+i2cdev-lsm9ds0 = { path = "./local/i2cdev-sensors/i2cdev-lsm9ds0" }
+pca9685 = { path = "./local/rust-pca9685" }
+ads111x = { path = "./local/rust-ads1115" }
+unbounded-gpsd = "0.4.2"
+wifilocation = { path = "./local/wifilocation" }
+mqtt-protocol = "0.4"
+configurations = { path = "./configurations" }
+logger = { path = "./logger" }
+nalgebra = "0.13.1"
+typenum = "1.9.0"
+num = "0.1"
+alga = "0.5.2"
 
 [[bin]]
 name = "drone"

@@ -1,74 +1,57 @@
 use hardware::sensors::MultiSensorData;
 use flight::imu::Attitude;
-use config::Config;
+use configurations::Config;
+
+use na::Vector3;
+use na::UnitQuaternion;
+use num::traits::Zero;
+
+use time::{Duration, PreciseTime};
+
+const MICROSECONDS_PER_SECOND: f64 = 1000000.0;
 
 pub struct PID {
-    integral_on: bool,
-    roll_kp: f32,
-    roll_ki: f32,
-    roll_kd: f32,
-    pitch_kp: f32,
-    pitch_ki: f32,
-    pitch_kd: f32,
-    yaw_kp: f32,
-    yaw_kd: f32,
-    integral: MultiSensorData
+    kp: f64,
+    ki: f64,
+    kd: f64,
+    integral: Vector3<f64>,
+    last_update: PreciseTime,
 }
 
 impl PID {
     pub fn new() -> PID {
-        let config = Config::new();
-
         PID {
-            integral_on: false,
-            roll_kp: config.roll_kp,
-            roll_ki: config.roll_ki,
-            roll_kd: config.roll_kd,
-            pitch_kp: config.pitch_kp,
-            pitch_ki: config.pitch_ki,
-            pitch_kd: config.pitch_kd,
-            yaw_kp: config.yaw_kp,
-            yaw_kd: config.yaw_kd,
-            integral: MultiSensorData::zeros()
+            kp: 0.0,
+            ki: 0.0,
+            kd: 1.0,
+            integral: Vector3::zero(),
+            last_update: PreciseTime::now(),
         }
     }
 
-    pub fn correct_attitude(&mut self, dt: f32, current_attitude: Attitude, current_angular_rate: MultiSensorData,
-                            desired_attitude: Attitude, mid_level: f32) -> (f32, f32, f32, f32)
-    {
-        // println!("derivative: {:?}", current_angular_rate);
+    // Thank you to Jaeyoon Kim for helping formulate this PID
+    // Compute the torque to put on the quadcopter in order to fix the attitude
+    fn compute_torque(&mut self, error: Vector3<f64>, angular_rate: Vector3<f64>) -> Vector3<f64> {
+        let now = PreciseTime::now();
+        let diff = self.last_update.to(now);
+        let dt = (diff.num_microseconds() as f64) / MICROSECONDS_PER_SECOND;
 
-        let proportional = current_attitude - desired_attitude;
-        let derivative = current_angular_rate;
-        self.integral = self.integral + proportional * dt;
+        self.integral = self.integral + error * dt
+        let torque = -self.kp * error - self.kd * angular_rate - self.ki * self.integral;
 
-        let mut error = MultiSensorData::zeros();
+        self.last_update = diff;
 
-        let ki = 0.0;
+        torque
+    }
 
-        // x: Roll, y: Pitch PID
-        error.x = proportional.x * self.roll_kp + self.integral.x * self.roll_ki + derivative.x * self.roll_kd;
-        error.y = proportional.y * self.pitch_kp + self.integral.y * self.pitch_ki + derivative.y * self.pitch_kd;
-
-        let (mut m1, mut m2, mut m3, mut m4) = (mid_level, mid_level, mid_level, mid_level);
-        m1 = (0.0 - error.x + error.y) / 2.0;
-        m2 = (0.0 - error.x - error.y) / 2.0;
-        m3 = (0.0 + error.x - error.y) / 2.0;
-        m4 = (0.0 + error.x + error.y) / 2.0;
-
-        m1 += mid_level;
-        m2 += mid_level;
-        m3 += mid_level;
-        m4 += mid_level;
-
-        // z: Yaw PID is added afterwards
-        error.z = proportional.z * self.yaw_kp + derivative.z * self.yaw_kd;
-
-        m1 -= error.z;
-        m2 += error.z;
-        m3 -= error.z;
-        m4 += error.z;
-
-        (m1, m2, m3, m4)
+    // Output motor speeds to correct attitude
+    // Thank you to Jaeyoon Kim for helping formulate this PID
+    pub fn control(
+        &mut self,
+        attitude: UnitQuaternion<f64>,
+        angular_rate: UnitQuaternion<f64>,
+        desired_attitude: UnitQuaternion<f64>,
+    ) -> (f64, f64, f64, f64) {
+        let torque = self.compute_torque(attitude.scaled_axis(), angular_rate.scaled_axis());
     }
 }
