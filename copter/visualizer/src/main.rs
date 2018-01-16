@@ -1,7 +1,6 @@
 extern crate alga;
 extern crate json;
 extern crate kiss3d;
-extern crate libusb;
 extern crate nalgebra as na;
 extern crate num;
 extern crate typenum;
