@@ -5,6 +5,8 @@ use std::time::Duration;
 use std::io;
 
 use i2cdev_lsm9ds0::*;
+use i2cdev_lsm303dlhc::*;
+use i2cdev_l3gd20::*;
 use i2csensors::{Accelerometer, Gyroscope, Magnetometer};
 use i2cdev::linux::{LinuxI2CDevice, LinuxI2CError};
 
@@ -76,6 +78,21 @@ impl IMU {
                     }
                 }
             }
+            "L3GD20H" => {
+                logger.log("Initializing L3GD20H.");
+                match get_l3gd20h() {
+                    Ok(device) => {
+                        let l2gd20 = Rc::new(RefCell::new(device));
+                        gyroscope = Some(l2gd20.clone());
+                    }
+                    Err(()) => {
+                        logger.error(
+                            "Couldn't initialize L3GD20H gyroscope, accelerometer, magnetometer.",
+                        );
+                        return Err(());
+                    }
+                }
+            }
             _ => {
                 logger.error("Unknown gyroscope model. Check your configuration file.");
                 return Err(());
@@ -85,17 +102,35 @@ impl IMU {
         #[cfg(target_arch = "arm")]
         match config.hardware.accelerometer.name.as_ref() {
             "LSM9DS0" => {}
+            "LSM303DLHC" => {
+                logger.log("Initializing LSM303DLHC.");
+                match get_lsm303dlhc() {
+                    Ok(device) => {
+                        let reference = Rc::new(RefCell::new(device));
+                        accelerometer = Some(reference.clone());
+                        magnetometer = Some(reference.clone());
+                    }
+                    Err(()) => {
+                        logger.error(
+                            "Couldn't initialize LSM303DLHC accelerometer, magnetometer.",
+                        );
+                        return Err(());
+                    }
+                }
+            }
             _ => {
-                logger.error("Unknown gyroscope model. Check your configuration file.");
+                logger.error("Unknown acc model. Check your configuration file.");
                 return Err(());
             }
+
         };
 
         #[cfg(target_arch = "arm")]
         match config.hardware.magnetometer.name.as_ref() {
             "LSM9DS0" => {}
+            "LSM303DLHC" => {}
             _ => {
-                logger.error("Unknown gyroscope model. Check your configuration file.");
+                logger.error("Unknown magnometer model. Check your configuration file.");
                 return Err(());
             }
         };
@@ -411,40 +446,59 @@ fn get_lsm9ds0() -> Result<LSM9DS0<LinuxI2CDevice>, ()> {
     }
 }
 
-// fn get_l3gd20(frequency: u32) -> L3GD20<LinuxI2CDevice> {
-//     let mut gyro_settings = L3GD20GyroscopeSettings {
-//         DR: L3GD20GyroscopeDataRate::Hz190,
-//         BW: L3GD20GyroscopeBandwidth::BW1,
-//         power_mode: L3GD20PowerMode::Normal,
-//         zen: true,
-//         yen: true,
-//         xen: true,
-//         sensitivity: L3GD20GyroscopeFS::dps500,
-//         continuous_update: true,
-//         high_pass_filter_enabled: true,
-//         high_pass_filter_mode: Some(L3GD20GyroscopeHighPassFilterMode::NormalMode),
-//         high_pass_filter_configuration: Some(L3GD20HighPassFilterCutOffConfig::HPCF_3),
-//     };
+#[cfg(target_arch = "arm")]
+fn get_l3gd20h() -> Result<L3GD20<LinuxI2CDevice>, ()> {
+    let mut gyro_settings = L3GD20GyroscopeSettings {
+        DR: L3GD20GyroscopeDataRate::Hz190,
+        BW: L3GD20GyroscopeBandwidth::BW1,
+        power_mode: L3GD20PowerMode::Normal,
+        zen: true,
+        yen: true,
+        xen: true,
+        sensitivity: L3GD20GyroscopeFS::dps500,
+        continuous_update: true,
+        high_pass_filter_enabled: true,
+        high_pass_filter_mode: Some(L3GD20GyroscopeHighPassFilterMode::NormalMode),
+        high_pass_filter_configuration: Some(L3GD20HighPassFilterCutOffConfig::HPCF_3),
+    };
 
-//     if frequency <= 190 {
-//         gyro_settings.DR = L3GD20GyroscopeDataRate::Hz190;
-//         gyro_settings.BW = L3GD20GyroscopeBandwidth::BW2;
-//     } else if frequency <= 380 {
-//         gyro_settings.DR = L3GD20GyroscopeDataRate::Hz380;
-//         gyro_settings.BW = L3GD20GyroscopeBandwidth::BW3;
-//     } else {
-//         gyro_settings.DR = L3GD20GyroscopeDataRate::Hz760;
-//         gyro_settings.BW = L3GD20GyroscopeBandwidth::BW4;
-//     }
+    // Note that this gets the "h" version.
+    // TODO: Implement get_linux_l3gd20_i2c_device()
+    let gyro_device = get_linux_l3gd20h_i2c_device().unwrap();
+    match L3GD20::new(gyro_device, gyro_settings) {
+        Ok(l3gd20) => Ok(l3gd20),
+        Err(e) => {
+            println!("{}", e);
+            Err(())
+        },
+    }
+}
 
-//     let gyro_device = get_linux_l3gd20_i2c_device().unwrap();
-//     match L3GD20::new(gyro_device, gyro_settings) {
-//         Ok(l3gd20) => l3gd20,
-//         Err(e) => {
-//             panic!("Couldn't start l3gd20");
-//         }
-//     }
-// }
+#[cfg(target_arch = "arm")]
+fn get_lsm303dlhc() -> Result<LSM303DLHC<LinuxI2CDevice>, ()> {
+    let settings = LSM303DLHCSettings {
+        continuous_update: true,
+        low_power: false,
+        accelerometer_data_rate: LSM303DLHCAccelerometerUpdateRate::Hz100,
+        accelerometer_anti_alias_filter_bandwidth: LSM303DLHCAccelerometerFilterBandwidth::Hz50,
+        azen: true,
+        ayen: true,
+        axen: true,
+        accelerometer_sensitivity: LSM303DLHCAccelerometerFS::g2,
+        magnetometer_resolution: LSM303DLHCMagnetometerResolution::High,
+        magnetometer_data_rate: LSM303DLHCMagnetometerUpdateRate::Hz30,
+        magnetometer_low_power_mode: false,
+        magnetometer_mode: LSM303DLHCMagnetometerMode::ContinuousConversion,
+        magnetometer_sensitivity: LSM303DLHCMagnetometerFS::gauss2_5
+    };
+
+    let (mut acc, mut mag) = get_linux_lsm303d_i2c_device().unwrap();
+
+    match LSM303DLHC::new(acc, mag, settings) {
+        Ok(device) => Ok(device),
+        Err(e) => Err(()),
+    }
+}
 
 // fn get_lsm303d(frequency: u32) -> LSM303D<LinuxI2CDevice> {
 //     let mut accel_mag_settings = LSM303DSettings {

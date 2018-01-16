@@ -83,8 +83,6 @@ fn control_loop(
         kalman_filter.update(dt);
         prev_time = current_time;
 
-        println!("{:?}", kalman_filter.x);
-
         motor_tx.send(MotorCommand::SetPower(0.0, 0.0, 0.0, 0.0));
 
         let att_vec = kalman_filter.x.attitude.coords;

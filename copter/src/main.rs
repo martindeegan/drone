@@ -13,6 +13,7 @@ extern crate i2cdev_bmp180;
 extern crate i2cdev_bmp280;
 extern crate i2cdev_l3gd20;
 extern crate i2cdev_lsm303d;
+extern crate i2cdev_lsm303dlhc;
 extern crate i2cdev_lsm9ds0;
 extern crate i2csensors;
 extern crate pca9685;

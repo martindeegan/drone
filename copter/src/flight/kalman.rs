@@ -311,7 +311,6 @@ impl KalmanFilter {
             }
             None => {}
         }
-        println!("P: {:?}", self.P);
     }
 
     fn update_accelerometer(&mut self, acceleration: Vector3<f64>, dt: f64) {
@@ -357,7 +356,7 @@ impl KalmanFilter {
     pub fn update(&mut self, dt: f64) {
         let update = self.update_rx.recv().unwrap();
 
-        self.update_accelerometer(update.acceleration, dt);
+//        self.update_accelerometer(update.acceleration, dt);
         // if update.magnetic_reading.is_some() {
         //     self.update_magnetometer(update.magnetic_reading.unwrap(), dt);
         // }

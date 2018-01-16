@@ -8,8 +8,8 @@ use std::thread::sleep;
 
 use std::time::Duration;
 
-const MAX_VALUE: f64 = 2000.0;
-const MIN_VALUE: f64 = 1000.0;
+const MAX_VALUE: f32 = 2000.0;
+const MIN_VALUE: f32 = 1000.0;
 
 pub enum MotorCommand {
     PowerDown,
@@ -86,7 +86,7 @@ impl MotorManager for SerialMotorManager {
 
     fn set_powers(&mut self, powers: [f64; 4]) {
         for i in 0..self.motors.len() {
-            match self.device.set_pulse_length(self.motors[i], powers[i]) {
+            match self.device.set_pulse_length(self.motors[i], powers[i] as f32) {
                 Ok(_) => {}
                 Err(e) => {
                     self.logger.error("Couldn't set motor power.");

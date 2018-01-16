@@ -14,6 +14,7 @@ i2cdev-bmp280 = { path = "./local/i2cdev-sensors/i2cdev-bmp280" }
 i2cdev-l3gd20 = { path = "./local/i2cdev-sensors/i2cdev-l3gd20" }
 i2cdev-lsm303d = { path = "./local/i2cdev-sensors/i2cdev-lsm303d" }
 i2cdev-lsm9ds0 = { path = "./local/i2cdev-sensors/i2cdev-lsm9ds0" }
+i2cdev-lsm303dlhc = { path = "./local/i2cdev-sensors/i2cdev-lsm303dlhc" }
 pca9685 = { path = "./local/rust-pca9685" }
 ads111x = { path = "./local/rust-ads1115" }
 unbounded-gpsd = "0.4.2"

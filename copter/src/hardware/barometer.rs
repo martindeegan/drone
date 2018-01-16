@@ -36,7 +36,8 @@ impl BarometerThermometer {
         match config.hardware.barometer.name.as_ref() {
             "BMP180" => {
                 logger.error("BMP180 not implemented yet.");
-                return Err(());
+                let mock_sensor = Rc::new(RefCell::new(MockSensor::new()));
+                barometer = Some(mock_sensor.clone());
             }
             "BMP280" => {
                 logger.log("Initializing BMP280 barometer.");

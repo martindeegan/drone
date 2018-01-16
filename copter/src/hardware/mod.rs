@@ -30,8 +30,12 @@ use self::motors::{MotorManager, SerialMotorManager};
 use self::gps::get_gps;
 use self::battery::{BatteryMonitor, BatteryStatus};
 
+// HACKS
+use self::mock::MockSensor;
+
 pub use self::motors::MotorCommand;
 pub use self::gps::GPSData;
+
 
 const MILLISECONDS_PER_SECOND: i64 = 1000;
 const LOOP_FREQUENCY: i64 = 75; // 95 Hz Loop
@@ -75,13 +79,14 @@ pub fn initialize_hardware() -> (
             };
             hardware_logger.success("IMU initialized.");
 
-            let mut motor_manager = match SerialMotorManager::new() {
-                Ok(motors) => motors,
-                Err(_) => {
-                    hardware_logger.error("Motor initialization failed.");
-                    panic!("Motor initialization failed.");
-                }
-            };
+//            let mut motor_manager = match SerialMotorManager::new() {
+//                Ok(motors) => motors,
+//                Err(_) => {
+//                    hardware_logger.error("Motor initialization failed.");
+//                    panic!("Motor initialization failed.");
+//                }
+//            };
+            let mut motor_manager = MockSensor::new();
             hardware_logger.success("Motors initialized.");
 
 
@@ -186,7 +191,7 @@ impl Default for UpdateReading {
 fn hardware_loop(
     barometer: &mut BarometerThermometer,
     imu: &mut IMU,
-    motor_manager: &mut SerialMotorManager,
+    motor_manager: &mut MotorManager,
     gps_rx: Receiver<GPSData>,
     prediction_tx: Sender<PredictionReading>,
     update_tx: Sender<UpdateReading>,
