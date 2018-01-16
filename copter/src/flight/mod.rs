@@ -1,5 +1,7 @@
+// mod altitude;
 // mod pid;
-mod navigation;
+// mod imu;
+// mod navigation;
 mod kalman;
 
 // use self::altitude::Altitude;
@@ -26,7 +28,7 @@ use std::fmt;
 use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
 use std::io::prelude::*;
 
-const MICROSECONDS_PER_SECOND: f64 = 1000000.0;
+const MICROSECONDS_PER_SECOND: f32 = 1000000.0;
 
 #[derive(Clone, Copy)]
 pub enum FlightMode {
@@ -78,7 +80,7 @@ fn control_loop(
     'control: loop {
         let current_time = PreciseTime::now();
         let diff = prev_time.to(current_time);
-        let dt = (diff.num_microseconds().unwrap() as f64) / MICROSECONDS_PER_SECOND;
+        let dt = (diff.num_microseconds().unwrap() as f32) / MICROSECONDS_PER_SECOND;
         kalman_filter.predict(dt);
         kalman_filter.update(dt);
         prev_time = current_time;
@@ -102,10 +104,10 @@ fn control_loop(
 //     let config = Config::new();
 //     let start_power = config.hover_power;
 //     let take_off_max = config.max_motor_speed;
-//     let mut mid_level: f64 = 1000.0;
+//     let mut mid_level: f32 = 1000.0;
 //     let mut start_altitude = 0.0;
 //     let logging = config.logging;
-//     let loop_time = 1000000.0 / config.sensor_sample_frequency as f64;
+//     let loop_time = 1000000.0 / config.sensor_sample_frequency as f32;
 //     let power_diff = take_off_max - start_power;
 //     let take_off_time = config.take_off_time * 1000000.0;
 //     let loops_to_run = take_off_time / loop_time;
@@ -118,7 +120,7 @@ fn control_loop(
 //             control_loop(
 //                 &mode_rx,
 //                 logging,
-//                 take_off_max as f64,
+//                 take_off_max as f32,
 //                 start_power,
 //                 ramp_amount,
 //             );
@@ -130,9 +132,9 @@ fn control_loop(
 // fn control_loop(
 //     mode_rx: &Receiver<FlightMode>,
 //     logging: bool,
-//     take_off_max: f64,
-//     take_off_start: f64,
-//     ramp_amount: f64,
+//     take_off_max: f32,
+//     take_off_start: f32,
+//     ramp_amount: f32,
 // ) {
 //     let mut flight_mode = FlightMode::Off;
 
@@ -155,7 +157,7 @@ fn control_loop(
 
 //     'control: loop {
 //         let current_time = PreciseTime::now();
-//         let dt = (last_time.to(current_time).num_microseconds().unwrap() as f64) / 1000000.0;
+//         let dt = (last_time.to(current_time).num_microseconds().unwrap() as f32) / 1000000.0;
 
 //         check_flight_mode(
 //             &mode_rx,
@@ -232,9 +234,9 @@ fn control_loop(
 //     motor_manager: &mut MotorManager,
 //     pid_controller: &mut PID,
 //     altitude_holder: &mut Altitude,
-//     take_off_max: f64,
-//     ramp_amount: f64,
-//     dt: f64,
+//     take_off_max: f32,
+//     ramp_amount: f32,
+//     dt: f32,
 // ) {
 //     let mid_level = altitude_holder.get_mid_level(imu.last_altitude, 1.5, None, dt);
 
@@ -253,7 +255,7 @@ fn control_loop(
 //     motor_manager: &mut MotorManager,
 //     pid_controller: &mut PID,
 //     altitude_holder: &mut Altitude,
-//     dt: f64,
+//     dt: f32,
 // ) {
 //     let mid_level = altitude_holder.get_mid_level(imu.last_altitude, -1.0, None, dt);
 
@@ -309,7 +311,7 @@ fn control_loop(
 //     }
 // }
 
-// fn send_log_data(logger: &Sender<Signal>, imu: &IMU, motor_manager: &MotorManager, time: f64) {
+// fn send_log_data(logger: &Sender<Signal>, imu: &IMU, motor_manager: &MotorManager, time: f32) {
 //     let data = DebugInfo {
 //         t: time,
 //         m1: motor_manager.last_m1,

@@ -14,14 +14,14 @@ const MIN_VALUE: f32 = 1000.0;
 pub enum MotorCommand {
     PowerDown,
     Arm,
-    SetPower(f64, f64, f64, f64),
+    SetPower(f32, f32, f32, f32),
 }
 
 pub trait MotorManager {
     fn arm(&mut self);
     fn calibrate(&mut self);
     fn terminate(&mut self);
-    fn set_powers(&mut self, powers: [f64; 4]);
+    fn set_powers(&mut self, powers: [f32; 4]);
     fn process_command(&mut self, command: MotorCommand);
 }
 
@@ -84,7 +84,7 @@ impl MotorManager for SerialMotorManager {
         self.logger.success("Motors Off.");
     }
 
-    fn set_powers(&mut self, powers: [f64; 4]) {
+    fn set_powers(&mut self, powers: [f32; 4]) {
         for i in 0..self.motors.len() {
             match self.device.set_pulse_length(self.motors[i], powers[i] as f32) {
                 Ok(_) => {}
@@ -140,7 +140,7 @@ impl SerialMotorManager {
 impl MotorManager for SerialMotorManager {
     fn arm(&mut self) {}
     fn terminate(&mut self) {}
-    fn set_powers(&mut self, powers: [f64; 4]) {}
+    fn set_powers(&mut self, powers: [f32; 4]) {}
     fn process_command(&mut self, command: MotorCommand) {}
     fn calibrate(&mut self) {}
 }
@@ -249,7 +249,7 @@ impl MotorManager for SerialMotorManager {
 // //         self.motors.push(gpio_pin);
 // //     }
 
-// //     pub fn set_powers(&mut self, mut m1: f64, mut m2: f64, mut m3: f64, mut m4: f64) {
+// //     pub fn set_powers(&mut self, mut m1: f32, mut m2: f32, mut m3: f32, mut m4: f32) {
 
 // //         let max = m1.max(m2).max(m3).max(m4);
 // //         let min = m1.min(m2).min(m3).min(m4);

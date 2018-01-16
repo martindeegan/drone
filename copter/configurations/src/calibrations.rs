@@ -8,46 +8,46 @@ use na::{Matrix3, Vector3};
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Simple {
-    pub offsets: Vec<f64>,
+    pub offsets: Vec<f32>
 }
 
 impl Simple {
-    pub fn new(offsets: Vector3<f64>) -> Simple {
+    pub fn new(offsets: Vector3<f32>) -> Simple {
         Simple {
             offsets: offsets.as_slice().to_vec(),
         }
     }
 
-    pub fn get_offsets(&self) -> Vector3<f64> {
+    pub fn get_offsets(&self) -> Vector3<f32> {
         Vector3::from_column_slice(&self.offsets)
     }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Ellipsoid {
-    pub offsets: Vec<f64>,
-    pub rotation: Vec<f64>,
-    pub gains: Vec<f64>,
+    pub offsets: Vec<f32>,
+    pub rotation: Vec<f32>,
+    pub gains: Vec<f32>
 }
 
 impl Ellipsoid {
-    pub fn new(offsets: Vector3<f64>, rotation: Matrix3<f64>, gains: Vector3<f64>) -> Ellipsoid {
+    pub fn new(offsets: Vector3<f32>, rotation: Matrix3<f32>, gains: Vector3<f32>) -> Ellipsoid {
         Ellipsoid {
             offsets: offsets.as_slice().to_vec(),
             rotation: rotation.as_slice().to_vec(),
-            gains: gains.as_slice().to_vec(),
+            gains: gains.as_slice().to_vec()
         }
     }
 
-    pub fn get_offsets(&self) -> Vector3<f64> {
+    pub fn get_offsets(&self) -> Vector3<f32> {
         Vector3::from_column_slice(&self.offsets)
     }
 
-    pub fn get_rotation(&self) -> Matrix3<f64> {
+    pub fn get_rotation(&self) -> Matrix3<f32> {
         Matrix3::from_column_slice(&self.rotation)
     }
 
-    pub fn get_gains(&self) -> Vector3<f64> {
+    pub fn get_gains(&self) -> Vector3<f32> {
         Vector3::from_column_slice(&self.gains)
     }
 }

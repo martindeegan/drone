@@ -17,26 +17,26 @@ use na::geometry::UnitQuaternion;
 use typenum::U200;
 use num::traits::Zero;
 
-type Matrix200x9 = Matrix<f64, U200, U9, MatrixArray<f64, U200, U9>>;
-type Vector9 = VectorN<f64, U9>;
-type Vector200 = VectorN<f64, U200>;
+type Matrix200x9 = Matrix<f32, U200, U9, MatrixArray<f32, U200, U9>>;
+type Vector9 = VectorN<f32, U9>;
+type Vector200 = VectorN<f32, U200>;
 
 use configurations::{Calibrations, Config, Ellipsoid, Simple};
 use logger::ModuleLogger;
 
-const G_TO_MPSPS: f64 = 9.80665;
+const G_TO_MPSPS: f32 = 9.80665;
 
 use super::mock::MockSensor;
 
 pub struct IMU {
     gyroscope: Rc<RefCell<Gyroscope<Error = LinuxI2CError>>>,
-    gyroscope_offsets: Vector3<f64>,
+    gyroscope_offsets: Vector3<f32>,
     accelerometer: Rc<RefCell<Accelerometer<Error = LinuxI2CError>>>,
-    accelerometer_offsets: Vector3<f64>,
+    accelerometer_offsets: Vector3<f32>,
     magnetometer: Rc<RefCell<Magnetometer<Error = LinuxI2CError>>>,
-    magnetometer_offsets: Vector3<f64>,
-    magnetometer_rotation: Matrix3<f64>,
-    magnetometer_gains: Vector3<f64>,
+    magnetometer_offsets: Vector3<f32>,
+    magnetometer_rotation: Matrix3<f32>,
+    magnetometer_gains: Vector3<f32>,
     logger: ModuleLogger,
     // calibrations: Calibrations,
 }
@@ -199,13 +199,13 @@ impl IMU {
         Ok(imu)
     }
 
-    fn read_gyroscope_raw(&mut self) -> Result<Vector3<f64>, ()> {
+    fn read_gyroscope_raw(&mut self) -> Result<Vector3<f32>, ()> {
         match self.gyroscope.borrow_mut().angular_rate_reading() {
             Ok(angular_rate) => Ok(Vector3::new(
                 // Right hand rule. LSM9DS0 is opposite for roll and yaw...
-                -angular_rate.x.to_radians() as f64,
-                angular_rate.y.to_radians() as f64,
-                -angular_rate.z.to_radians() as f64,
+                -angular_rate.x.to_radians(),
+                angular_rate.y.to_radians(),
+                -angular_rate.z.to_radians(),
             )),
             Err(_) => {
                 self.logger.error("Couldn't read gyroscope.");
@@ -214,13 +214,11 @@ impl IMU {
         }
     }
 
-    fn read_accelerometer_raw(&mut self) -> Result<Vector3<f64>, ()> {
+    fn read_accelerometer_raw(&mut self) -> Result<Vector3<f32>, ()> {
         match self.accelerometer.borrow_mut().acceleration_reading() {
-            Ok(acceleration) => Ok(Vector3::new(
-                acceleration.x as f64,
-                -acceleration.y as f64,
-                (acceleration.z as f64) * G_TO_MPSPS,
-            )),
+            Ok(acceleration) => {
+                Ok(Vector3::new(acceleration.x, -acceleration.y, acceleration.z) * G_TO_MPSPS)
+            }
             Err(_) => {
                 self.logger.error("Couldn't read accelerometer.");
                 return Err(());
@@ -228,13 +226,9 @@ impl IMU {
         }
     }
 
-    fn read_magnetometer_raw(&mut self) -> Result<Vector3<f64>, ()> {
+    fn read_magnetometer_raw(&mut self) -> Result<Vector3<f32>, ()> {
         match self.magnetometer.borrow_mut().magnetic_reading() {
-            Ok(magnetic) => Ok(Vector3::new(
-                magnetic.x as f64,
-                magnetic.y as f64,
-                magnetic.z as f64,
-            )),
+            Ok(magnetic) => Ok(Vector3::new(magnetic.x, magnetic.y, magnetic.z)),
             Err(_) => {
                 self.logger.error("Couldn't read magnetometer.");
                 return Err(());
@@ -242,19 +236,19 @@ impl IMU {
         }
     }
 
-    pub fn read_gyroscope(&mut self) -> Result<Vector3<f64>, ()> {
+    pub fn read_gyroscope(&mut self) -> Result<Vector3<f32>, ()> {
         match self.read_gyroscope_raw() {
             Ok(angular_rate_raw) => Ok(angular_rate_raw - self.gyroscope_offsets),
             Err(_) => Err(()),
         }
     }
-    pub fn read_accelerometer(&mut self) -> Result<Vector3<f64>, ()> {
+    pub fn read_accelerometer(&mut self) -> Result<Vector3<f32>, ()> {
         match self.read_accelerometer_raw() {
             Ok(acceleration_raw) => Ok(acceleration_raw - self.accelerometer_offsets),
             Err(_) => Err(()),
         }
     }
-    pub fn read_magnetometer(&mut self) -> Result<Vector3<f64>, ()> {
+    pub fn read_magnetometer(&mut self) -> Result<Vector3<f32>, ()> {
         match self.read_magnetometer_raw() {
             Ok(magnetic_reading_raw) => {
                 let offset_corrected = magnetic_reading_raw - self.magnetometer_offsets;
@@ -319,38 +313,38 @@ impl IMU {
 
         // Auxillary matrices
         #[rustfmt_skip]
-        let A_4: Matrix4<f64> = Matrix4::new(v.data[0], v.data[3], v.data[4], v.data[6], 
+        let A_4: Matrix4<f32> = Matrix4::new(v.data[0], v.data[3], v.data[4], v.data[6], 
                                              v.data[3], v.data[1], v.data[5], v.data[7], 
                                              v.data[4], v.data[5], v.data[2], v.data[8], 
                                              v.data[6], v.data[7], v.data[8], -1.0,
         );
 
         #[rustfmt_skip]
-        let A_3: Matrix3<f64> = Matrix3::new(v.data[0],v.data[3],v.data[4],
+        let A_3: Matrix3<f32> = Matrix3::new(v.data[0],v.data[3],v.data[4],
                                              v.data[3],v.data[1],v.data[5],
                                              v.data[4],v.data[5],v.data[2],
         );
-        let v_ghi: Vector3<f64> = Vector3::new(v.data[6], v.data[7], v.data[8]);
+        let v_ghi: Vector3<f32> = Vector3::new(v.data[6], v.data[7], v.data[8]);
 
         // Compute offsets
         let offsets = -1.0 * A_3.try_inverse().unwrap() * v_ghi;
 
         // More auxillary matrices
         #[rustfmt_skip]
-        let T: Matrix4<f64> = Matrix4::new(1.0,0.0,0.0,0.0,
+        let T: Matrix4<f32> = Matrix4::new(1.0,0.0,0.0,0.0,
                                            0.0,1.0,0.0,0.0,
                                            0.0,0.0,1.0,0.0,
                                            offsets.data[0],offsets.data[1],offsets.data[2],1.0);
         let B_4 = T * A_4 * T.transpose();
 
         let b_44 = -1.0 * B_4.data[15];
-        let B_3: Matrix3<f64> = B_4.fixed_resize(0.0) / b_44;
+        let B_3: Matrix3<f32> = B_4.fixed_resize(0.0) / b_44;
 
         // Compute gains and rotation
         let eigen_decomp = B_3.symmetric_eigen();
-        let gains: Vector3<f64> =
+        let gains: Vector3<f32> =
             Vector3::from_fn(|r, c| (1.0 / eigen_decomp.eigenvalues.data[r]).sqrt());
-        let rotation: Matrix3<f64> = eigen_decomp.eigenvectors.try_inverse().unwrap();
+        let rotation: Matrix3<f32> = eigen_decomp.eigenvectors.try_inverse().unwrap();
 
         calibs.magnetometer = Some(Ellipsoid::new(offsets, rotation, gains));
     }
