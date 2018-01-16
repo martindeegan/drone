@@ -60,7 +60,7 @@ impl SerialMotorManager {
 impl MotorManager for SerialMotorManager {
     fn arm(&mut self) {
         self.logger.log("Arming Motors.");
-        match self.device.set_all_pulse_length(MIN_VALUE) {
+        match self.device.set_all_pulse_length(MIN_VALUE as f32) {
             Ok(()) => {}
             Err(e) => {
                 self.logger.error("Couldn't arm motors.");
@@ -86,7 +86,9 @@ impl MotorManager for SerialMotorManager {
 
     fn set_powers(&mut self, powers: [f32; 4]) {
         for i in 0..self.motors.len() {
-            match self.device.set_pulse_length(self.motors[i], powers[i] as f32) {
+            match self.device
+                .set_pulse_length(self.motors[i], powers[i] as f32)
+            {
                 Ok(_) => {}
                 Err(e) => {
                     self.logger.error("Couldn't set motor power.");
@@ -112,9 +114,9 @@ impl MotorManager for SerialMotorManager {
 
     fn calibrate(&mut self) {
         self.device.set_all_duty_cycle(0);
-        self.device.set_all_pulse_length(MAX_VALUE);
+        self.device.set_all_pulse_length(MAX_VALUE as f32);
         sleep(Duration::from_secs(3));
-        self.device.set_all_pulse_length(MIN_VALUE);
+        self.device.set_all_pulse_length(MIN_VALUE as f32);
         sleep(Duration::from_secs(3));
         self.device.set_all_duty_cycle(0);
         sleep(Duration::from_secs(1));

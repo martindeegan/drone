@@ -76,11 +76,11 @@ impl KalmanFilter {
         let mut F_i: MatrixMN<f32, U18, U12> = MatrixMN::zero();
         F_i.fixed_slice_mut::<U12, U12>(3, 0).fill_with_identity();
 
-        let acc_noise = (0.5 as f32);
-        let gyro_noise = (0.1 as f32).to_radians();
-        let acc_bias_walk = (0.0 as f32);
-        let gyro_bias_walk = (0.0 as f32);
-        let mut Q_i: MatrixN<f32, U12> = MatrixN::zero();
+        let acc_noise = (0.5 as f64);
+        let gyro_noise = (0.0 as f64).to_radians();
+        let acc_bias_walk = (0.0002 as f64);
+        let gyro_bias_walk = (0.0002 as f64);
+        let mut Q_i: MatrixN<f64, U12> = MatrixN::zero();
         {
             let mut acc_noise_mat = Q_i.fixed_slice_mut::<U3, U3>(0, 0);
             acc_noise_mat.fill_with_identity();
@@ -264,19 +264,13 @@ impl KalmanFilter {
 
         let dq = UnitQuaternion::from_quaternion(Quaternion::from_parts(1.0, dt));
         self.x.attitude = self.x.attitude * dq;
-
-        // let mut G = CovarianceMatrix::identity();
-        // G.fixed_slice_mut::<U3, U3>(6, 6)
-        //     .copy_from(&(Matrix3::identity() - KalmanFilter::sqew_matrix(&dt)));
-
-        // self.P = G * self.P * G.transpose();
     }
 
     fn correct_field_reading(&mut self, field: Vector3<f32>, measurement: Vector3<f32>) {
         let predicted_measurement = self.x.attitude.transform_vector(&field);
         let z = measurement - predicted_measurement;
 
-        let acc_noise = (2.0 as f32);
+        let acc_noise = 2.0;
         let rot = self.x.attitude.to_rotation_matrix().unwrap();
         let R = Matrix3::identity() * acc_noise;
         let V = rot * R * rot.transpose();
@@ -325,19 +319,19 @@ impl KalmanFilter {
         let lon = gps_measurement.longitude;
     }
 
-    // fn update_magnetometer(&mut self, magnetic_reading: Vector3<f32>, dt: f32) {
+    // fn update_magnetometer(&mut self, magnetic_reading: Vector3<f64>, dt: f64) {
     //     // Ann Arbor magnetic field
-    //     // let magnetic_field = Vector3::new(18924.2, -2318.0, 50104.5).normalize();
+    //     let magnetic_field = Vector3::new(18924.2, -2318.0, 50104.5).normalize();
 
-    //     // let (error_angle, error_axis) = self.get_attitude_error(magnetic_reading, magnetic_field);
-    //     // let alpha = 0.15;
+    //     let (error_angle, error_axis) = self.get_attitude_error(magnetic_reading, magnetic_field);
+    //     let alpha = 0.15;
 
-    //     // let attitude_error: UnitQuaternion<f32> =
-    //     //     UnitQuaternion::from_axis_angle(&error_axis, error_angle * alpha);
+    //     let attitude_error: UnitQuaternion<f32> =
+    //         UnitQuaternion::from_axis_angle(&error_axis, error_angle * alpha);
 
-    //     // let attitude_correction = self.state.attitude * attitude_error;
+    //     let attitude_correction = self.state.attitude * attitude_error;
 
-    //     // self.state.attitude = attitude_correction;
+    //     self.state.attitude = attitude_correction;
     // }
 
     // fn update_gps(&mut self, dt: f32) {}
@@ -345,7 +339,7 @@ impl KalmanFilter {
     pub fn update(&mut self, dt: f32) {
         let update = self.update_rx.recv().unwrap();
 
-//        self.update_accelerometer(update.acceleration, dt);
+        //        self.update_accelerometer(update.acceleration, dt);
         // if update.magnetic_reading.is_some() {
         //     self.update_magnetometer(update.magnetic_reading.unwrap(), dt);
         // }

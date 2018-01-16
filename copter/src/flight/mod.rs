@@ -56,7 +56,8 @@ pub fn start_flight_controller(
         .name(String::from("Control thread"))
         .spawn(move || {
             control_loop(kalman_filter, motor_tx, mode_rx);
-        });
+        })
+        .unwrap();
 }
 
 fn control_loop(
