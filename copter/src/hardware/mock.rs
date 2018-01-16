@@ -54,7 +54,7 @@ impl Magnetometer for MockSensor {
 impl MotorManager for MockSensor {
     fn arm(&mut self) {}
     fn terminate(&mut self) {}
-    fn set_powers(&mut self, powers: [f64; 4]) {}
+    fn set_powers(&mut self, powers: [f32; 4]) {}
     fn process_command(&mut self, command: MotorCommand) {}
     fn calibrate(&mut self) {}
 }

@@ -1,0 +1,49 @@
+% Helper functions
+clc
+% Quaternion Helpers
+syms quaternion_to_rotation_matrix(qx, qy, qz, qw)
+quaternion_to_rotation_matrix(qx, qy, qz, qw) = [1-2*qy^2-2*qz^2 2*qx*qy-2*qz*qw 2*qx*qz+2*qy*qw;
+                                                 2*qx*qy+2*qz*qw 1-2*qx^2-2*qz^2 2*qy*qz-2*qx*qw;
+                                                 2*qx*qz-2*qy*qw 2*qy*qz+2*qx*qw 1-2*qx^2-2*qy^2];
+       
+syms left_product_matrix(qx, qy, qz, qw)
+left_product_matrix(qx, qy, qz, qw) = [qw qz -qy qx; -qz qw qx qy; qy -qx qw qz; -qx -qy -qz qw];
+syms right_product_matrix(q)
+right_product_matrix(q) = [q(4) -q(3) q(2) q(1); q(3) q(4) -q(1) q(2); -q(2) q(1) q(4) q(3); -q(1) -q(2) -q(3) q(4)];
+
+syms sqew_matrix(x, y, z)
+sqew_matrix(x, y, z) = [0 -z y; z 0 -x; -y x 0];
+
+syms omega_matrix(x, y, z)
+omega_matrix(qx, qy, qz, qw) = [0 z -y x; -z 0 x y; y -x 0 z; -x -y -z 0];
+
+syms small_error_to_error_quaternion(theta)
+small_error_to_error_quaternion(theta) = [0.5*theta(1); 0.5*theta(2); 0.5*theta(3); 1];
+
+syms add_error_state(lat, lon, alt, vn, ve, vz, qx, qy, qz, qw, gbx, gby, gbz, abx, aby, abz, mx, my, mz, dlat, dlon, dalt, dvn, dve, dvz, dtx, dty, dtz, dgbx, dgby, dgbz, dabx, daby, dabz, dmx, dmy, dmz)
+add_error_state(lat, lon, alt, vn, ve, vz, qx, qy, qz, qw, gbx, gby, gbz, abx, aby, abz, mx, my, mz, ...
+                dlat, dlon, dalt, dvn, dve, dvz, dtx, dty, dtz, dgbx, dgby, dgbz, dabx, daby, dabz, dmx, dmy, dmz) = ...
+                    [lat+dlat; lon+dlon; alt+dalt; vn+dvn; ve+dve; vz+dvz; ...
+                        right_product_matrix(qx, qy, qz, qw)*small_error_to_error_quaternion(dtx, dty, dtz); ...
+                            gbx+dgbx; gby+dgby; gbz+dgbz; abx+dabx; aby+daby; abz+dabz; mx+dmx; my+dmy; mz+dmz];
+                        
+dXddx = jacobian(add_e_state_f([lat; lon; alt; vn; ve; vz; qx; qy; qz; qw; gbx; gby; gbz;...
+                                abx; aby; abz; mx; my; mz; dlat, dlon, dalt, dvn, dve, dvz, dtx, dty, dtz, dgbx, dgby, dgbz, dabx, daby, dabz, dmx, dmy; dmz]), [dx])
+% Helper Matrices
+I3 = eye(3);
+I4 = eye(4);
+
+syms func(x, dx)
+%func = [x(1)+2*dx(1)+3*dx(2); x(2)-dx(3); x(3)*dx(1); x(4)-dx(1)+dx(2)];
+
+function add_e_state_f = add_e_state(x, dx)
+    p_prod = right_product_matrix(x(7:10));
+    dq = small_error_to_error_quaternion(dx(7:9));
+    q_fixed = p_prod * dq;
+    dx_dim = [dx(1:6); 0; 0; 0; 0; dx(10:)];
+    x_fixed = x + dx_dim;
+    x_fixed(7:10) = q_fixed;
+    add_e_state_f = x_fixed;
+end
+
+

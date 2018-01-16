@@ -15,21 +15,21 @@ use hardware::GPSData;
 
 use logger::ModuleLogger;
 
-const G_TO_MPSPS: f64 = 9.80665;
+const G_TO_MPSPS: f32 = 9.80665;
 
-type TransitionJacobian = MatrixN<f64, U18>;
-type CovarianceMatrix = MatrixN<f64, U18>;
-type StateJacobian = MatrixMN<f64, U19, U18>;
+type TransitionJacobian = MatrixN<f32, U18>;
+type CovarianceMatrix = MatrixN<f32, U18>;
+type StateJacobian = MatrixMN<f32, U19, U18>;
 
 // Keep track of Location: (lat, lon, altitude), Velocity: (track, climb), Attitude(w, i, j, k), gyro bias, accel bias, magnetic field
 #[derive(Debug)]
 pub struct State {
-    pub position: Vector3<f64>,
-    pub velocity: Vector3<f64>,
-    pub attitude: UnitQuaternion<f64>,
-    pub gyro_bias: Vector3<f64>,
-    pub acc_bias: Vector3<f64>,
-    pub magnetic_field: Vector3<f64>,
+    pub position: Vector3<f32>,
+    pub velocity: Vector3<f32>,
+    pub attitude: UnitQuaternion<f32>,
+    pub gyro_bias: Vector3<f32>,
+    pub acc_bias: Vector3<f32>,
+    pub magnetic_field: Vector3<f32>,
 }
 
 impl Default for State {
@@ -54,8 +54,8 @@ pub struct KalmanFilter {
     state_jacobian: StateJacobian,
     F: TransitionJacobian,
     Q: CovarianceMatrix,
-    H_field: MatrixMN<f64, U3, U19>,
-    thrust: f64,
+    H_field: MatrixMN<f32, U3, U19>,
+    thrust: f32,
 }
 
 impl KalmanFilter {
@@ -73,14 +73,14 @@ impl KalmanFilter {
             bottom_right.fill_with_identity();
         }
 
-        let mut F_i: MatrixMN<f64, U18, U12> = MatrixMN::zero();
+        let mut F_i: MatrixMN<f32, U18, U12> = MatrixMN::zero();
         F_i.fixed_slice_mut::<U12, U12>(3, 0).fill_with_identity();
 
-        let acc_noise = (0.5 as f64);
-        let gyro_noise = (0.1 as f64).to_radians();
-        let acc_bias_walk = (0.0 as f64);
-        let gyro_bias_walk = (0.0 as f64);
-        let mut Q_i: MatrixN<f64, U12> = MatrixN::zero();
+        let acc_noise = (0.5 as f32);
+        let gyro_noise = (0.1 as f32).to_radians();
+        let acc_bias_walk = (0.0 as f32);
+        let gyro_bias_walk = (0.0 as f32);
+        let mut Q_i: MatrixN<f32, U12> = MatrixN::zero();
         {
             let mut acc_noise_mat = Q_i.fixed_slice_mut::<U3, U3>(0, 0);
             acc_noise_mat.fill_with_identity();
@@ -120,7 +120,7 @@ impl KalmanFilter {
     }
 
     fn update_state_jacobian(&mut self) {
-        let q: &Vector4<f64> = &self.x.attitude.coords;
+        let q: &Vector4<f32> = &self.x.attitude.coords;
 
         let mut q_jacob = self.state_jacobian.fixed_slice_mut::<U4, U3>(6, 6);
 
@@ -133,7 +133,7 @@ impl KalmanFilter {
         q_jacob.copy_from(&update);
     }
 
-    fn omega_matrix(w: &Vector3<f64>) -> Matrix4<f64> {
+    fn omega_matrix(w: &Vector3<f32>) -> Matrix4<f32> {
         #[rustfmt_skip]
         Matrix4::new(0.0, w.z, -w.y, w.x,
                      -w.z, 0.0, w.x, w.y,
@@ -141,18 +141,18 @@ impl KalmanFilter {
                      -w.x, -w.y, -w.z, 0.0)
     }
 
-    fn sqew_matrix(a: &Vector3<f64>) -> Matrix3<f64> {
+    fn sqew_matrix(a: &Vector3<f32>) -> Matrix3<f32> {
         #[rustfmt_skip]
         Matrix3::new(0.0, -a.z, a.y,
                      a.z, 0.0, -a.x,
                      -a.y, a.x, 0.0)
     }
 
-    fn quaternion_rate(w: Vector3<f64>) -> UnitQuaternion<f64> {
+    fn quaternion_rate(w: Vector3<f32>) -> UnitQuaternion<f32> {
         UnitQuaternion::from_axis_angle(&Unit::new_normalize(w), w.norm())
     }
 
-    pub fn predict(&mut self, dt: f64) {
+    pub fn predict(&mut self, dt: f32) {
         // let current_state = self.get_state();
         let mut u = self.prediction_rx.recv().unwrap();
         u.angular_rate -= self.x.gyro_bias;
@@ -170,14 +170,14 @@ impl KalmanFilter {
 
         // 3 axis angular rate integration
         let taylor_order: i32 = 3;
-        let mut Theta: Matrix4<f64> = Matrix4::identity();
+        let mut Theta: Matrix4<f32> = Matrix4::identity();
         let mut fac = 1.0;
         let mut omega = omega_mean;
         for i in 1..taylor_order {
             Theta = Theta + (1.0 / fac) * omega;
 
             omega *= omega_mean;
-            fac *= i as f64;
+            fac *= i as f32;
         }
         Theta += (1.0 / 48.0 * dt * dt) * (omega_next * omega_prev - omega_prev * omega_next);
         let attitude_p =
@@ -223,7 +223,7 @@ impl KalmanFilter {
         };
     }
 
-    fn add_error_state(&mut self, error_state: VectorN<f64, U18>) {
+    fn add_error_state(&mut self, error_state: VectorN<f32, U18>) {
         let dp = Vector3::new(
             error_state.data[0],
             error_state.data[1],
@@ -272,11 +272,11 @@ impl KalmanFilter {
         // self.P = G * self.P * G.transpose();
     }
 
-    fn correct_field_reading(&mut self, field: Vector3<f64>, measurement: Vector3<f64>) {
+    fn correct_field_reading(&mut self, field: Vector3<f32>, measurement: Vector3<f32>) {
         let predicted_measurement = self.x.attitude.transform_vector(&field);
         let z = measurement - predicted_measurement;
 
-        let acc_noise = (2.0 as f64);
+        let acc_noise = (2.0 as f32);
         let rot = self.x.attitude.to_rotation_matrix().unwrap();
         let R = Matrix3::identity() * acc_noise;
         let V = rot * R * rot.transpose();
@@ -291,7 +291,7 @@ impl KalmanFilter {
         let qz = self.x.attitude.coords.data[2];
         let qw = self.x.attitude.coords.data[3];
         #[rustfmt_skip]
-        let H_x: Matrix3x4<f64> =
+        let H_x: Matrix3x4<f32> =
             Matrix3x4::new(          2.0*(fy*qy+qz*fz), 2.0*(fy*qx-2.0*fx*qy+qw*fz), 2.0*(qx*fz-2.0*fx*qz-fy*qw), 2.0*(qy*fz-fy*qz),
                            2.0*(fx*qy-2.0*fy*qx-qw*fz),           2.0*(fx*qx+qz*fz), 2.0*(fx*qw-2.0*fy*qz+qy*fz), 2.0*(fx*qz-qx*fz),
                            2.0*(fy*qw+fx*qz-2.0*qx*fz), 2.0*(fy*qz-fx*qw-2.0*qy*fz),           2.0*(fx*qx+fy*qy), 2.0*(fy*qx-fx*qy));
@@ -314,27 +314,16 @@ impl KalmanFilter {
         println!("P: {:?}", self.P);
     }
 
-    fn update_accelerometer(&mut self, acceleration: Vector3<f64>, dt: f64) {
+    fn update_accelerometer(&mut self, acceleration: Vector3<f32>, dt: f32) {
         let gravity = Vector3::new(0.0, 0.0, G_TO_MPSPS);
         self.correct_field_reading(gravity, acceleration);
     }
 
-    fn update_magnetometer(&mut self, magnetic_reading: Vector3<f64>) {}
+    fn update_magnetometer(&mut self, magnetic_reading: Vector3<f32>) {}
 
     fn update_gps(&mut self, gps_measurement: GPSData) {
-        let mut ned_measurement = Vector3::new(
-            gps_measurement.latitude,
-            gps_measurement.longitude,
-            self.x.position.data[2] as f64,
-        );
-        match gps_measurement.altitude {
-            Some(alt) => {
-                ned_measurement.data[2] = alt;
-            }
-            None => {}
-        };
-
-        let z = ned_measurement - self.x.position;
+        let lat = gps_measurement.latitude;
+        let lon = gps_measurement.longitude;
     }
 
     // fn update_magnetometer(&mut self, magnetic_reading: Vector3<f32>, dt: f32) {
@@ -354,7 +343,7 @@ impl KalmanFilter {
 
     // fn update_gps(&mut self, dt: f32) {}
 
-    pub fn update(&mut self, dt: f64) {
+    pub fn update(&mut self, dt: f32) {
         let update = self.update_rx.recv().unwrap();
 
         self.update_accelerometer(update.acceleration, dt);
