@@ -54,7 +54,8 @@ pub fn start_flight_controller(
         .name(String::from("Control thread"))
         .spawn(move || {
             control_loop(kalman_filter, motor_tx, mode_rx);
-        });
+        })
+        .unwrap();
 }
 
 fn control_loop(
@@ -83,7 +84,8 @@ fn control_loop(
         kalman_filter.update(dt);
         prev_time = current_time;
 
-        println!("{:?}", kalman_filter.x);
+        println!("dt: {}", dt);
+        // println!("{:?}", kalman_filter.x);
 
         motor_tx.send(MotorCommand::SetPower(0.0, 0.0, 0.0, 0.0));
 
