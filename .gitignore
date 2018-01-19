@@ -7,3 +7,6 @@ rs,toml
 node_modules/
 out.txt
 *.key
+writeup/*
+!writeup/writeup.tex
+!writeup/writeup.pdf
