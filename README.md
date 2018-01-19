@@ -33,19 +33,19 @@ This project is a pure rust implementation of a quadcopter.
 ### Motors
 - Crazepony Emax Mt2213 935kv Brushless Motor
 
-## Installation
+## Installation (Pi)
 1) Install Rust https://www.rust-lang.org/en-US/install.html
 2) Install Protobuf 3. For the Pi, you may need to install from source since there are no ARM releases.
 3) Clone Safe Flight
 3) Build with cargo:
-~~~
+```bash
 cd copter
 cargo build --release
-~~~
+```
 4) Run with sudo:
-~~~
+```
 sh run-release.sh
-~~~
+```
 
 ## Configuration
 Modify copter.json to suit your specific configuration.
