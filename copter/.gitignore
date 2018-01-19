@@ -4,3 +4,6 @@ configuration/calibrations.toml
 *.csv
 out.txt
 *.m~
+writeup/*
+!writeup/writeup.tex
+!writeup/writeup.pdf
