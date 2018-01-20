@@ -78,21 +78,33 @@ fn control_loop(
     let mut prev_time = PreciseTime::now();
     sleep(Duration::milliseconds(10).to_std().unwrap());
     let mut count = 0;
+    let mut t = 0.0;
     'control: loop {
         let current_time = PreciseTime::now();
         let diff = prev_time.to(current_time);
+<<<<<<< 04d0a6b224e8b99aac4f5f5c3444c5909e9ad02b
         let dt = (diff.num_microseconds().unwrap() as f32) / MICROSECONDS_PER_SECOND;
+=======
+        let dt = (diff.num_microseconds().unwrap() as f64) / MICROSECONDS_PER_SECOND;
+        t += dt;
+>>>>>>> Multiple visualizer updates. Added a model for the quadcopter and added a visualizer for motor powers.
         kalman_filter.predict(dt);
         kalman_filter.update(dt);
         prev_time = current_time;
 
+<<<<<<< 04d0a6b224e8b99aac4f5f5c3444c5909e9ad02b
+=======
+        println!("dt: {}", dt);
+        println!("{:?}", kalman_filter.x.attitude);
+
+>>>>>>> Multiple visualizer updates. Added a model for the quadcopter and added a visualizer for motor powers.
         motor_tx.send(MotorCommand::SetPower(0.0, 0.0, 0.0, 0.0));
 
         let att_vec = kalman_filter.x.attitude.coords;
         if count % 3 == 0 {
             let msg: String = format!(
-                "{{ \"position\": [{}, {}, {}], \"attitude\": [{}, {}, {}, {}] }}",
-                0.0, 0.0, 0.0, att_vec.data[0], att_vec.data[1], att_vec.data[2], att_vec.data[3]
+                "{{ \"position\": [{}, {}, {}], \"attitude\": [{}, {}, {}, {}], \"power\": [{}, {}, {}, {}]}}",
+                0.0, 0.0, 0.0, att_vec[0], att_vec[1], att_vec[2], att_vec[3], 1400.0 + 200.0 * t.sin(), 1400.0 + 200.0 * t.cos(), 1400.0 + 200.0 * -t.sin(), 1400.0 + 200.0 * -t.cos()
             );
             client.send_to(msg.as_bytes(), &addr).unwrap();
         }
