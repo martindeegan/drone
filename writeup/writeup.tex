@@ -71,6 +71,11 @@ p\\ v\\ q\\ b_g\\ b_a\\ m\\ b
 \delta b
 \end{bmatrix}$$
 
+If the absolute true position was $\vec{x}_t$, then $\vec{x}_t = \vec{x} \oplus \delta\vec{x}$ where $\oplus$ represents adding the error state. This addition is not always just vector addition. In the case of quaternions $q \oplus \delta \theta =  \begin{bmatrix}
+\frac{1}{2}\delta\theta\\
+1
+\end{bmatrix} \otimes q$. This is explained a bit more in section 2.2.
+
 Much of the derivation of the prediction step in Kalman Filter comes from the work of Joan Sola in this \href{http://www.iri.upc.edu/people/jsola/JoanSola/objectes/notes/kinematics.pdf}{paper}.
 \subsection{How does the Extended Kalman Filter work?}
 The EKF is an amazing tool for combining any number of sensor readings into one big estimation system. It works by tracking both your predicted state, $\vec{x}$, and your uncertainty, $\mat{P}$, which is represented as a covariance matrix (how much each value varies with respect to each other). By tracking your uncertainty, you can accuratly update your state when you receive an absolute measurement (that is usually noisy). Here I will explain the two parts of a Kalman Filter.
@@ -89,19 +94,19 @@ How do we track uncertainty? Just as each part of the state has an transition fu
 $$\vec{\delta v}_k = \vec{\delta v}_{k-1} + \vec{\sigma}_a\Delta t$$
 Where $\vec{\sigma_a}$ is the variance (noise) of the accelerometer. There is one slight difference, we don't know the error state, we only know how uncertain we are. If we knew the error state, we could simply subtract it and we would know exactly where we are! So instead, we can transition our uncertainty.
 
-This is where the EKF gets its "Extended" name. We need to transition our covariance matrix $\mat{P}$ somehow in the same way we transition $\vec{x}_{k-1}$ to $\vec{\tilde{x}}_k$ with $f$. In a normal Kalman Filter $f$ is represented as a linear transformation (a matrix), however here it is a nonlinear function. To do this we need to linearize $f$ somehow. If you remember Taylor expansions form calculus, you have the single variable case:
+This is where the EKF gets its "Extended" name. We need to transition our covariance matrix $\mat{P}$ somehow in the same way we transition $\vec{x}_{k-1}$ to $\vec{\tilde{x}}_k$ with $f$. In a normal Kalman Filter $f$ is represented as a linear transformation (a matrix), however here it is a nonlinear function. To do this we need to linearize $f$ somehow. If you remember Taylor expansions form calculus, you have the single variable case (Appendix A):
 $$f(x_k) = f(x_{k-1}) + f'(x_{k-1})(x-a) + \frac{f''(x_{k-1})}{2!}(x-a)^2 + \frac{f'''(x_{k-1})}{3!}(x-a)^3 + \dots$$
 
 This is very similar to our transition function. In fact, we can represent the change in our state as a tiny little step in the direction of the derivative. This is simply a first order multivariable Taylor series where our change is just the change in time:
 $$f(\vec{x}_{k-1}, \vec{u}) = \vec{x}_{k-1} \oplus \vec{\delta_{predicted}} \approx \vec{x}_{k-1} \oplus \frac{\partial f(\vec{x}_{k-1})}{\partial \vec{x}}\Delta t$$
 
 
-Where $\oplus$ represents a small addition to the state and $\vec{\delta_{predicted}}$ is that small change amount. In our case, we have a multivariable function so the derivative is a jacobian in which case we can use the multivariable Taylor Series. Here is an example of a first order multivariate Taylor Series:
+Where $\oplus$ represents a small addition to the state and $\vec{\delta_{predicted}}$ is that small change amount. In our case, we have a multivariable function so the derivative is a jacobian in which case we can use the multivariable Taylor Series. Here is an example of a first order multivariate Taylor Series (Appendix A):
 $$f: \R^n \to \R^m$$
 $$f(\vec{x}) = f(\vec{x}_0) + \frac{\partial f_1(\vec{x}_0)}{\partial x_1}(x_1 - a_1) + \dots + \frac{\partial f_1(\vec{x}_0)}{\partial x_n}(x_n - a_n) + \dots $$ 
 $$+ \frac{\partial f_m(\vec{x_0})}{\partial x_1}(x_1 - a_1) + \dots + \frac{\partial f_m(\vec{x}_0)}{\partial x_n}(x_n - a_n)$$
 $$= f(\vec{x}_0) + \frac{\partial f}{\partial \vec{x}}(\vec{x}- \vec{a}) = f(\vec{x}_0) + \mat{J}(f)(\vec{x}-\vec{a})$$
-So we get $\mat{F} = \left.\frac{\partial f}{\partial \vec{x}}\right|_{\vec{x}_{k-1}}$ is the jacobian of $f$ evaluated at $\vec{x}_{k-1}$. $\mat{F}$ is the linearized version of $f$ and we can now update the covariance matrix by using the following identity:
+So we get $\mat{F} = \left.\frac{\partial f}{\partial \vec{x}}\right|_{\vec{x}_{k-1}}$ is the jacobian of $f$ evaluated at $\vec{x}_{k-1}$. $\mat{F}$ is the linearized version of $f$ and we can now update the covariance matrix by using the following identity (Appendix B):
 $$\mat{P}_{k} = \mat{F} \mat{P}_{k-1} \mat{F}^T$$
 This idenetity basically says "if you act on these variables ($\vec{x}$) with this function $\mat{F}$, then their covariances will update in this way." This only transfers existing uncertainties. At each step we add more uncertainty with each reading. We can represent these uncertainties with a diagonal matrix $\mat{Q}$ where each component is the variance (noise) corresponding to each of the values in the control vector $\vec{u}$. We now need to know how to update $x_p$ based on these new noises so we need to take another jacobian.
 $\mat{L} = \left.\frac{\partial f}{\partial \vec{u}}\right|_{\vec{x}_{k-1}}$. Then we can use similar reasoning as above to get:
@@ -234,9 +239,98 @@ f_x & f_y & f_z
 \subsection{Update Barometer}
 
 \section{Quadcopter Control}
+\subsection{Torque Computation}
+
+\subsection{Motor Power Computation}
 
 \appendix
 \section{Jacobians and Taylor Series}
+This section is a quick recap on calculus.
+\subsection{Taylor Series}
+As you learned in Calc II, a Taylor Series is a way of representing a function $f$ around a point, $a$, by representing it as a summation (with some other requirements).
+$$f(x) = \sum_{k=0}^\infty \frac{f^{(k)}(a)}{k!}(x-a)^k$$
+We can use it to approximate $f$ if we don't know it explicitly. If we take an $n^{th}$ order Taylor expansion of $f$, we get 
+$$f(x) \approx f(a) + f'(a)(x-a) + \frac{f''(a)}{n!}(x-a)^2 + \dots + \frac{f^{(n)}}{n!}(x-a)^n$$
+
+Here is $\sin(x)$ approximated to several orders.
+\begin{center}
+\begin{tikzpicture}
+\begin{axis}[
+ticks=none,
+minor tick num = 2,
+thick,
+x=2cm,
+y=3cm,
+axis lines=center, 
+grid=both,
+xmin=-4,
+xmax=4,
+ymin=-1.5,
+ymax=1.5
+]
+
+\addplot[samples=200, domain=-10:10] {sin(deg(x))};
+\addplot[samples=200, blue] {(x)};
+\addplot[samples=200, red] {0 + cos(0)(x)-sin(0)/2!*(x)^2-cos(0)/3!*(x^3)};
+\addplot[samples=200, orange] {0 + cos(0)(x)-sin(0)/2!*(x)^2-cos(0)/3!*(x^3)+cos(0)/5!*(x^5)};
+\legend{$f(x) = \sin(x)$, 1st order, 3rd order, 5th order}
+\end{axis}
+\end{tikzpicture}
+\end{center}
+You can see that the higher order expansions approximate better, but still diverge fairly quickly.
+\subsection{Jacobians}
+A Jacobian is a matrix representing the partial derivatives of a function.
+$$f: \R^n \to \R^m$$
+$$f: \vec{x} \mapsto \begin{bmatrix}
+f_1(\vec{x})\\ f_2(\vec{x}) \\ \vdots \\ f_m(\vec{x})
+\end{bmatrix}$$
+So we define the Jacobian in the following way:
+$$J(f) = \frac{\partial f}{\partial \vec{x}} = \begin{bmatrix}
+\frac{\partial f_1}{\partial x_1} & \frac{\partial f_1}{\partial x_2} & \dots & \frac{\partial f_1}{\partial x_n}\\
+\frac{\partial f_2}{\partial x_1} & \ddots & & \vdots\\
+\vdots & & \ddots & \vdots\\
+\frac{\partial f_m}{\partial x_1} & \dots & \dots & \frac{\partial f_m}{\partial x_n} 
+\end{bmatrix}$$
+
+\subsection{Multivariate Taylor Series}
+Now we can define the multivariate Taylor Series.
+$$f: \R^n \to \R^m$$
+If we want to approximate $f$ about $\vec{x}_0 = \begin{bmatrix}
+x_0 & x_1 &\dots & x_n
+\end{bmatrix}^T$ then we can do so by
+$$f(\vec{x}) \approx f(\vec{x}_0) + \left.J(f)\right|_{\vec{x}_0}(\vec{x} - \vec{x}_0)$$
+
+Let $f(x,y) = x^2y$ and we want to approximate this at $(1,1)$.
+\begin{center}
+\begin{tikzpicture}[
+        declare function = {
+            Z(\x,\y) = -(x^2+y^2);
+            Z_x(\x, \y) = -2*x;
+            Z_y(\x, \y) = -2*y;
+            Z_xx(\x, \y) = -2;
+            Z_xy(\x, \y) = 0;
+            Z_yy(\x, \y) = -2;
+        }
+    ]
+    \begin{axis}
+    [   
+    width=500,
+    height = 500, 
+    axis lines=center,
+    enlargelimits,
+    tick align=inside,
+    domain=-3:3,
+    samples=20, % this was 200, but I changed it to 20 because of my slow PC
+    minor tick num=5,
+    %zmax = 30,
+    %zmin = -30,
+    ]
+    \addplot3 [surf, opacity=0.25, black] {Z(x,y)};
+    \addplot3 [surf, opacity=0.25, red] {Z(1,1) + Z_x(1,1)*(x-1) + Z_y(1,1)*(y-1) + (1/2)*Z_xx(1,1)*(x-1)^2 + (1/2)*Z_yy(1,1)*(y-1)^2};
+    \legend{$f(x)$, First Order}
+    \end{axis}
+\end{tikzpicture}
+\end{center}
 
 
 \section{Covariances}
@@ -281,6 +375,7 @@ $$z = R((1 - \theta^2 + \theta^4 - \dots) + i(\theta - \theta^3 + \theta^5 - \do
 \begin{tikzpicture}
 \begin{axis}[
 ticks=none,
+minor tick num = 2,
 thick,
 x=3cm,
 y=3cm,
