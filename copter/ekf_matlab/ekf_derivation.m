@@ -10,14 +10,18 @@ helper_functions;
 % Attitude: quaternion representation
 % Biases: Gyroscope, Accelerometer
 % Magnetic Field
-syms lat lon alt vn ve vz qx qy qz qw gbx gby gbz abx aby abz mx my mz
-syms dlat dlon dalt dvn dve dvz dtx dty dtz dgbx dgby dgbz dabx daby dabz dmx dmy dmz
+syms lat lon alt vn ve vz qx qy qz qw gbx gby gbz abx aby abz mx my mz psl
+syms dlat dlon dalt dvn dve dvz dtx dty dtz dgbx dgby dgbz dabx daby dabz dmx dmy dmz dpsl
 syms thrust
 syms dt
 syms x
+syms x_vars
 syms dx
-x = [lat; lon; alt; vn; ve; vz; qx; qy; qz; qw; gbx; gby; gbz; abx; aby; abz; mx; my; mz];
-dx = [lat lon alt vn ve vz qx qy qz qw gbx gby gbz abx aby abz mx my mz];
+syms dx_vars
+x = [lat; lon; alt; vn; ve; vz; qx; qy; qz; qw; gbx; gby; gbz; abx; aby; abz; mx; my; mz; psl];
+x_vars = [lat lon alt vn ve vz qx qy qz qw gbx gby gbz abx aby abz mx my mz psl];
+dx = [dlat; dlon; dalt; dvn; dve; dvz; dtx; dty; dtz; dgbx; dgby; dgbz; dabx; daby; dabz; dmx; dmy; dmz; dpsl];
+dx_vars = [dlat dlon dalt dvn dve dvz dtx dty dtz dgbx dgby dgbz dabx daby dabz dmx dmy dmz dpsl];
 
 % Control Variables
 syms gxp gyp gzp axp ayp azp
@@ -25,6 +29,8 @@ syms gx gy gz ax ay az
 syms up un
 up = [gxp; gyp; gzp; axp; ayp; azp];
 un = [gx; gy; gz; ax; ay; az];
+
+syms pressure temperature
 
 % transition functions
 syms remove_bias(r,b)
@@ -37,26 +43,47 @@ syms predict_state_velocity(qx, qy, qz, qw, vn, ve, vz, ax, ay, az, dt)
 syms predict_state_attitude(qx, qy, qz, qw, gxp, gyp, gzp, gx, gy, gz, dt)
 syms predict_state_position(lat, lon, alt, vn, ve, vz, dt)
 
-dXddx = jacobian(add_e_state([lat; lon; alt; vn; ve; vz; qx; qy; qz; qw;...
-                                gbx; gby; gbz; abx; aby; abz; mx; my; mz], ...
-                                [dlat; dlon; dalt; dvn; dve; dvz; dtx; dty; dtz; ...
-                                dgbx; dgby; dgbz; dabx; daby; dabz; dmx; dmy; dmz]), ...
-                                [dlat dlon dalt dvn dve dvz dtx dty dtz dgbx dgby dgbz dabx daby dabz dmx dmy dmz]);
-                            
-A = jacobian(predict_state(x, up, un, dt), dx);
-A(7:10,7:13) = 0;
-
-syms fx fy fz
-H_field = jacobian(rotate_field(x, [fx; fy; fz], thrust), dx);
-V_field = jacobian(rotate_field(x, [fx; fy; fz], thrust), [fx fy fz]);
+dXddx = jacobian(add_e_state(x, dx), x_vars);
+H_acc = jacobian(update_accelerometer(x, thrust), x_vars);               
+H_mag = jacobian(update_magnetometer(x), x_vars);               
+H_bar = jacobian(update_barometer(x, temperature), x_vars);               
+H_gps = jacobian(update_gps(x), x_vars);               
 
 disp("Jacobian of the state with respect to the error state (X_dx):");
+disp(dXddx);
 
+disp("H_acc");
+disp(H_acc);
+disp("H_mag");
+disp(H_mag);
+disp("H_bar");
+disp(H_bar);
+disp("H_gps");
+disp(H_gps);
 
-disp("Linearization of the state transition function (A):");
-% disp(dXddx);
-disp(H_field);
-disp(V_field);
+% Update
+function update_accelerometer_f = update_accelerometer(x, t) 
+    rot = rot_matrix(x(7:10));
+    g = [0; 0; 9.8];
+    g_body = rot * g;
+    a_body = g_body + x(14:16);
+    update_accelerometer_f = a_body;
+end
+
+function update_magnetometer_f = update_magnetometer(x) 
+    rot = rot_matrix(x(7:10));
+    m_body = rot * x(17:19);
+    update_magnetometer_f = m_body;
+end
+
+function update_barometer_f = update_barometer(x, t) 
+    p_0 = x(20) / (1 + 0.0065 * x(3) / (t + 273.15))^5.257;
+    update_barometer_f = [x(3); p_0];
+end
+
+function update_gps_f = update_gps(x) 
+    update_gps_f = [x(1); x(2); x(3); x(4); x(5); x(6)];
+end
 
 % --------- Prediction Step ----------------
 function integrate_gyroscope_f = integrate_gyroscope(q, gp, gn, dt)
@@ -87,13 +114,6 @@ function predict_state_f = predict_state(x, up, un, dt)
     v = predict_velocity(x(4:6), un(4:6), x(7:10), dt);
     p = predict_position(x(1:3), x(4:6), dt);
     predict_state_f = [p; v; q; x(11:19)];
-end
-
-% -------------------- Updates -------------------------
-
-function rotate_field_f = rotate_field(x, f, thr) 
-    rot = rot_matrix(x(7:10));
-    rotate_field_f = rot * (f  - [0; 0; thr]);
 end
 
 
@@ -129,10 +149,10 @@ function small_e_to_dq_f = small_e_to_dq(theta)
 end
 
 function add_e_state_f = add_e_state(x, dx)
-    p_prod = q_prod_r(x(7:10));
     dq = small_e_to_dq(dx(7:9));
-    q_fixed = p_prod * dq;
-    dx_dim = [dx(1:6); 0; 0; 0; 0; dx(10:18)];
+    dq_prod = q_prod_l(dq);
+    q_fixed = dq_prod * x(7:10);
+    dx_dim = [dx(1:6); 0; 0; 0; 0; dx(10:19)];
     x_fixed = x + dx_dim;
     x_fixed(7:10) = q_fixed;
     add_e_state_f = x_fixed;

@@ -30,6 +30,7 @@ pub struct State {
     pub gyro_bias: Vector3<f32>,
     pub acc_bias: Vector3<f32>,
     pub magnetic_field: Vector3<f32>,
+    pub sea_level_pressure: f32,
 }
 
 impl Default for State {
@@ -41,6 +42,7 @@ impl Default for State {
             gyro_bias: Vector3::zero(),
             acc_bias: Vector3::zero(),
             magnetic_field: Vector3::new(18924.2, -2318.0, 50104.5).normalize(),
+            sea_level_pressure: 1013.25, // Average SLP
         }
     }
 }
@@ -77,7 +79,7 @@ impl KalmanFilter {
         F_i.fixed_slice_mut::<U12, U12>(3, 0).fill_with_identity();
 
         let acc_noise = (0.5 as f32);
-        let gyro_noise = (0.0 as f32).to_radians();
+        let gyro_noise = (0.2 as f32).to_radians();
         let acc_bias_walk = (0.0002 as f32);
         let gyro_bias_walk = (0.0002 as f32);
         let mut Q_i: MatrixN<f32, U12> = MatrixN::zero();
@@ -155,8 +157,10 @@ impl KalmanFilter {
     pub fn predict(&mut self, dt: f32) {
         // let current_state = self.get_state();
         let mut u = self.prediction_rx.recv().unwrap();
-        u.angular_rate -= self.x.gyro_bias;
-        u.acceleration -= self.x.acc_bias;
+        // u.angular_rate -= self.x.gyro_bias;
+        // u.acceleration -= self.x.acc_bias;
+        println!("{:?}", u.angular_rate);
+        println!("{:?}", self.x.gyro_bias);
 
         //-------- First Order Gyroscope Integrator ---------//
         let prev_attitude = self.x.attitude;
@@ -255,6 +259,8 @@ impl KalmanFilter {
             error_state.data[17],
         );
 
+        println!("dab {:?}", dab);
+
         self.x.position += dp;
         self.x.velocity += dv;
         self.x.acc_bias += dab;
@@ -263,14 +269,14 @@ impl KalmanFilter {
 
 
         let dq = UnitQuaternion::from_quaternion(Quaternion::from_parts(1.0, dt));
-        self.x.attitude = self.x.attitude * dq;
+        self.x.attitude = dq * self.x.attitude;
     }
 
     fn correct_field_reading(&mut self, field: Vector3<f32>, measurement: Vector3<f32>) {
         let predicted_measurement = self.x.attitude.transform_vector(&field);
         let z = measurement - predicted_measurement;
 
-        let acc_noise = 2.0;
+        let acc_noise = 0.5;
         let rot = self.x.attitude.to_rotation_matrix().unwrap();
         let R = Matrix3::identity() * acc_noise;
         let V = rot * R * rot.transpose();
@@ -291,6 +297,8 @@ impl KalmanFilter {
                            2.0*(fy*qw+fx*qz-2.0*qx*fz), 2.0*(fy*qz-fx*qw-2.0*qy*fz),           2.0*(fx*qx+fy*qy), 2.0*(fy*qx-fx*qy));
         self.H_field.fixed_slice_mut::<U3, U4>(0, 6).copy_from(&H_x);
         let H = self.H_field * self.state_jacobian;
+
+
 
         let S = H * self.P * H.transpose() + V;
         match S.try_inverse() {
@@ -339,6 +347,7 @@ impl KalmanFilter {
     pub fn update(&mut self, dt: f32) {
         let update = self.update_rx.recv().unwrap();
 
+        println!("{:?}", update.acceleration);
         self.update_accelerometer(update.acceleration, dt);
         // if update.magnetic_reading.is_some() {
         //     self.update_magnetometer(update.magnetic_reading.unwrap(), dt);

@@ -10,13 +10,14 @@ helper_functions;
 % Attitude: quaternion representation
 % Biases: Gyroscope, Accelerometer
 % Magnetic Field
-syms lat lon alt vn ve vz qx qy qz qw gbx gby gbz abx aby abz mx my mz
-syms dlat dlon dalt dvn dve dvz dtx dty dtz dgbx dgby dgbz dabx daby dabz dmx dmy dmz
+syms lat lon alt vn ve vz qx qy qz qw gbx gby gbz abx aby abz mx my mz psl
+syms dlat dlon dalt dvn dve dvz dtx dty dtz dgbx dgby dgbz dabx daby dabz dmx dmy dmz dpsl
+syms thrust
 syms dt
 syms x
 syms dx
-x = [lat; lon; alt; vn; ve; vz; qx; qy; qz; qw; gbx; gby; gbz; abx; aby; abz; mx; my; mz];
-dx = [lat lon alt vn ve vz qx qy qz qw gbx gby gbz abx aby abz mx my mz];
+x = [lat; lon; alt; vn; ve; vz; qx; qy; qz; qw; gbx; gby; gbz; abx; aby; abz; mx; my; mz; psl];
+dx = [lat lon alt vn ve vz qx qy qz qw gbx gby gbz abx aby abz mx my mz psl];
 
 % Control Variables
 syms gxp gyp gzp axp ayp azp
@@ -46,8 +47,8 @@ A = jacobian(predict_state(x, up, un, dt), dx);
 A(7:10,7:13) = 0;
 
 syms fx fy fz
-H_field = jacobian(rotate_field(x, [fx; fy; fz]), dx);
-V_field = jacobian(rotate_field
+H_field = jacobian(rotate_field(x, [fx; fy; fz], thrust), dx);
+V_field = jacobian(rotate_field(x, [fx; fy; fz], thrust), [fx fy fz]);
 
 disp("Jacobian of the state with respect to the error state (X_dx):");
 
@@ -55,6 +56,29 @@ disp("Jacobian of the state with respect to the error state (X_dx):");
 disp("Linearization of the state transition function (A):");
 % disp(dXddx);
 disp(H_field);
+disp(V_field);
+
+% Update
+function update_accelerometer_f = update_accelerometer(x, t) 
+    rot = rot_matrix(x(7:10));
+    g = [0; 0; 9.8];
+    g_body = rot 
+    update_accelerometer_f = rot * x + x(14:17);
+end
+
+function update_magnetometer_f = update_magnetometer(x) 
+%     rot = rot_matrix(x(7:10));
+    update_magnetometer_f = 0;
+end
+
+function update_barometer_f = update_barometer(x, t) 
+    p_0 = x(20) / (1 + 0.0065 * x(3) / (t + 273.15))^5.257;
+    update_barometer_f = [x(3); p_0];
+end
+
+function update_gps_f = update_gps(x) 
+    update_gps_f = [x(1); x(2); x(3); x(4); x(5); x(6)];
+end
 
 % --------- Prediction Step ----------------
 function integrate_gyroscope_f = integrate_gyroscope(q, gp, gn, dt)
@@ -85,13 +109,6 @@ function predict_state_f = predict_state(x, up, un, dt)
     v = predict_velocity(x(4:6), un(4:6), x(7:10), dt);
     p = predict_position(x(1:3), x(4:6), dt);
     predict_state_f = [p; v; q; x(11:19)];
-end
-
-% -------------------- Updates -------------------------
-
-function rotate_field_f = rotate_field(x, f) 
-    rot = rot_matrix(x(7:10));
-    rotate_field_f = rot * f;
 end
 
 
