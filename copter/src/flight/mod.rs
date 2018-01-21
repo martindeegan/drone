@@ -82,22 +82,15 @@ fn control_loop(
     'control: loop {
         let current_time = PreciseTime::now();
         let diff = prev_time.to(current_time);
-<<<<<<< 04d0a6b224e8b99aac4f5f5c3444c5909e9ad02b
         let dt = (diff.num_microseconds().unwrap() as f32) / MICROSECONDS_PER_SECOND;
-=======
-        let dt = (diff.num_microseconds().unwrap() as f64) / MICROSECONDS_PER_SECOND;
         t += dt;
->>>>>>> Multiple visualizer updates. Added a model for the quadcopter and added a visualizer for motor powers.
         kalman_filter.predict(dt);
         kalman_filter.update(dt);
         prev_time = current_time;
 
-<<<<<<< 04d0a6b224e8b99aac4f5f5c3444c5909e9ad02b
-=======
         println!("dt: {}", dt);
         println!("{:?}", kalman_filter.x.attitude);
 
->>>>>>> Multiple visualizer updates. Added a model for the quadcopter and added a visualizer for motor powers.
         motor_tx.send(MotorCommand::SetPower(0.0, 0.0, 0.0, 0.0));
 
         let att_vec = kalman_filter.x.attitude.coords;

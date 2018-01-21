@@ -76,11 +76,11 @@ impl KalmanFilter {
         let mut F_i: MatrixMN<f32, U18, U12> = MatrixMN::zero();
         F_i.fixed_slice_mut::<U12, U12>(3, 0).fill_with_identity();
 
-        let acc_noise = (0.5 as f64);
-        let gyro_noise = (0.0 as f64).to_radians();
-        let acc_bias_walk = (0.0002 as f64);
-        let gyro_bias_walk = (0.0002 as f64);
-        let mut Q_i: MatrixN<f64, U12> = MatrixN::zero();
+        let acc_noise = (0.5 as f32);
+        let gyro_noise = (0.0 as f32).to_radians();
+        let acc_bias_walk = (0.0002 as f32);
+        let gyro_bias_walk = (0.0002 as f32);
+        let mut Q_i: MatrixN<f32, U12> = MatrixN::zero();
         {
             let mut acc_noise_mat = Q_i.fixed_slice_mut::<U3, U3>(0, 0);
             acc_noise_mat.fill_with_identity();
@@ -339,7 +339,7 @@ impl KalmanFilter {
     pub fn update(&mut self, dt: f32) {
         let update = self.update_rx.recv().unwrap();
 
-        //        self.update_accelerometer(update.acceleration, dt);
+        self.update_accelerometer(update.acceleration, dt);
         // if update.magnetic_reading.is_some() {
         //     self.update_magnetometer(update.magnetic_reading.unwrap(), dt);
         // }
