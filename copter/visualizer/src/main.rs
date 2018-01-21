@@ -84,10 +84,10 @@ fn main() {
                     // let new_position: Vector3<f32> = Vector3::new(j["position"][0].as_f32().unwrap(), j["position"][1].as_f32().unwrap(), j["position"][2].as_f32().unwrap());
                     let new_attitude: UnitQuaternion<f32> =
                         UnitQuaternion::from_quaternion(Quaternion::new(
-                            j["attitude"][3].as_f32().unwrap(),
-                            j["attitude"][0].as_f32().unwrap(),
-                            j["attitude"][1].as_f32().unwrap(),
-                            j["attitude"][2].as_f32().unwrap(),
+                            j["attitude"][3].as_f32().unwrap(), // w
+                            j["attitude"][0].as_f32().unwrap(), // x
+                            j["attitude"][1].as_f32().unwrap(), // y
+                            j["attitude"][2].as_f32().unwrap(), // z
                         ));
                     let new_position = Point3::new(
                         j["position"][0].as_f32().unwrap(),
@@ -123,6 +123,9 @@ fn main() {
         // }
     });
 
+    let model_rotation =
+        UnitQuaternion::from_axis_angle(&Unit::new_normalize(Vector3::x()), PI / 2.0);
+
     while window.render_with_camera(&mut camera) {
         match state_rx.try_recv() {
             Ok(s) => {
@@ -131,7 +134,7 @@ fn main() {
             Err(_) => {}
         }
 
-
+        quad_model.set_local_rotation(change_quat(state.attitude));
 
         let rot = state.attitude.to_rotation_matrix();
         let transformed_motor_positions = (rot * motor_points);
@@ -152,9 +155,7 @@ fn main() {
             window.draw_line(&pt1, &pt2, &yellow);
         }
 
-
-        println!("{:?}", state.attitude);
-        quad_model.set_local_rotation(state.attitude);
+        quad_model.set_local_rotation(model_rotation * state.attitude * model_rotation);
 
 
         // camera.look_at(camera_location, position);
@@ -175,6 +176,20 @@ fn main() {
         window.draw_line(&position_changed, &(position_changed + z), &blue);
 
         thread::sleep_ms(5);
+    }
+}
+
+fn change_quat(q: UnitQuaternion<f32>) -> UnitQuaternion<f32> {
+    match q.axis() {
+        Some(axis) => {
+            let angle = q.angle();
+            let new_q = UnitQuaternion::from_axis_angle(
+                &Unit::new_normalize(change_axes_vector(axis.unwrap())),
+                angle,
+            );
+            new_q
+        }
+        None => q,
     }
 }
 
