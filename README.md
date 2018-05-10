@@ -36,7 +36,7 @@ This project is a pure rust implementation of a quadcopter.
 ## Installation
 1) Install Rust https://www.rust-lang.org/en-US/install.html
 2) Install Protobuf 3. For the Pi, you may need to install from source since there are no ARM releases.
-3) Clone Safe Flight
+3) Clone the repo
 3) Build with cargo:
 ~~~
 cd copter
